@@ -87,6 +87,7 @@ where
 }
 
 #[allow(unused)]
+#[cfg(target_os = "linux")]
 fn pin_current_thread_to(cpu: usize) -> io::Result<()> {
   unsafe {
     let mut set: libc::cpu_set_t = std::mem::zeroed();
@@ -101,6 +102,12 @@ fn pin_current_thread_to(cpu: usize) -> io::Result<()> {
       return Err(io::Error::from_raw_os_error(ret));
     }
   }
+  Ok(())
+}
+
+#[allow(unused)]
+#[cfg(not(target_os = "linux"))]
+fn pin_current_thread_to(_cpu: usize) -> io::Result<()> {
   Ok(())
 }
 
