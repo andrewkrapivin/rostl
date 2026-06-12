@@ -1,19 +1,57 @@
-//! Implements the recursive ORAM Technique
-// UNDONE(git-17): Cite a paper or give a link in our docs explaining the recursive ORAM technique
-
 use bytemuck::{Pod, Zeroable};
 
 use rostl_oram::{
-  circuit_oram::CircuitORAM,
   linear_oram::{oblivious_write_index, oblivious_read_index, oblivious_memcpy, oblivious_read_update_index},
-  prelude::{PositionType, DUMMY_POS, K},
-  recursive_oram::RecursivePositionMap,
+  prelude::{PositionType, DUMMY_POS}
 };
-use rostl_primitives::{indexable::Length, traits::Cmov, ooption::OOption};
+use rostl_primitives::{
+  cmov_body, cxchg_body,
+  ooption::OOption,
+  traits::{_Cmovbase, Cmov},
+};
 
 const SUCCESSOR: usize = 2;
 const EXACT_MATCH: usize = 1;
 const PREDECESSOR: usize = 0;
+
+
+/// Automatically implement the Cmov trait for a generic type with type and const parameters.
+/// usage:
+/// ```ignore
+/// impl_cmov_for_generic_pod_with_const!(impl [T, const N: usize] for Type<T, N> [where T: Cmov + Pod])
+/// ```
+/// UNDONE: move to asm.rs?
+macro_rules! impl_cmov_for_generic_pod_with_const {
+  (impl [$($impl_generics:tt)*] for $ty:ty where [$($where_clause:tt)*]) => {
+    impl<$($impl_generics)*> Cmov for $ty
+    where
+      $ty: Pod,
+      $($where_clause)*
+    {
+      fn cmov(&mut self, other: &Self, choice: bool) {
+        cmov_body!(self, other, choice);
+      }
+
+      fn cxchg(&mut self, other: &mut Self, choice: bool) {
+        cxchg_body!(self, other, choice);
+      }
+    }
+  };
+  (impl [$($impl_generics:tt)*] for $ty:ty) => {
+    impl<$($impl_generics)*> Cmov for $ty
+    where
+      $ty: Pod,
+    {
+      fn cmov(&mut self, other: &Self, choice: bool) {
+        cmov_body!(self, other, choice);
+      }
+
+      fn cxchg(&mut self, other: &mut Self, choice: bool) {
+        cxchg_body!(self, other, choice);
+      }
+    }
+  };
+}
 
 /// UNDONE: Figure out if Ord needs to be made constant time by using the subtle crate
 /// UNDONE: maybe merge into the Array datatype? Kind of reimplemented that, although this is perhaps a little more specialized
@@ -31,6 +69,21 @@ where
   /// actual data
   data: [T; N]
 }
+
+/// UNDONE: figure out a safe implementation for Pod and Zeroable?
+unsafe impl<T, const N: usize> Zeroable for ObliviousArray<T, N>
+where
+  T: Cmov + Pod,
+{}
+
+unsafe impl<T, const N: usize> Pod for ObliviousArray<T, N>
+where
+  T: Cmov + Pod,
+{}
+
+impl_cmov_for_generic_pod_with_const!(
+  impl [T, const N: usize] for ObliviousArray<T, N> where [T: Cmov + Pod]
+);
 
 impl<T,const N: usize> ObliviousArray<T,N>
 where 
@@ -54,7 +107,7 @@ where
     oblivious_write_index(&mut self.data, index, value)
   }
   ///linear scan the entire array, read the element out when index matches, write to the index if the index matches
-  pub fn read_update(&mut self, index: K, value: T, ret: &mut T) {
+  pub fn read_update(&mut self, index: usize, value: T, ret: &mut T) {
     oblivious_read_update_index(&mut self.data, index, ret, value);
   }
 }
@@ -140,6 +193,21 @@ where
   len: usize
 }
 
+/// UNDONE: figure out a safe implementation for Pod and Zeroable?
+unsafe impl<T, const BM1: usize, const B: usize> Zeroable for BpTreeNode<T, BM1, B>
+where
+  T: Cmov + Pod + Ord,
+{}
+
+unsafe impl<T, const BM1: usize, const B: usize> Pod for BpTreeNode<T, BM1, B>
+where
+  T: Cmov + Pod + Ord,
+{}
+
+impl_cmov_for_generic_pod_with_const!(
+  impl [T, const BM1: usize, const B: usize] for BpTreeNode<T, BM1, B> where [T: Cmov + Pod + Ord]
+);
+
 impl<T, const BM1: usize, const B: usize> Default for BpTreeNode<T, BM1, B>
 where 
   T: Cmov + Pod + Ord
@@ -157,16 +225,23 @@ impl<T, const BM1: usize, const B: usize> BpTreeNode<T, BM1, B>
 where 
   T: Cmov + Pod + Ord
 {
+  /// UNDONE: make this implementation less bad.
   /// initialize with data. If the key supports comparisons, it should be already sorted from smallest to largest.
   /// len refers to the number of keys. 
-  pub fn new(keys: [T;BM1], ptrs: [PositionType; B], len: usize) -> Self {
+  pub fn new(keys: &[T], ptrs: &[PositionType], len: usize) -> Self {
     debug_assert!(keys.windows(2).all(|window| window[0] <= window[1]));
+    debug_assert!(keys.len() >= len && ptrs.len() >= len + 1);
     
-    Self { 
-      keys: ObliviousArray{data: keys},
-      ptrs: ObliviousArray { data: ptrs},
+    let mut new_node = Self { 
+      keys: ObliviousArray{data: [T::zeroed(); BM1]},
+      ptrs: ObliviousArray { data: [DUMMY_POS; B]},
       len: len
-    }
+    };
+
+    new_node.keys.renew(keys);
+    new_node.ptrs.renew(ptrs);
+
+    new_node
   }
   ///reinitialize with new data. If the key supports comparisons, it should be already sorted from smallest to largest.
   pub fn renew(&mut self, keys: &[T;BM1], ptrs: &[PositionType; B], len: usize) {
@@ -176,9 +251,10 @@ where
     self.len = len;
   }
   /// Returns the old pointer for where to go down the tree and sets a new ptr
+  /// Additionally returns index of this returned pointer in the node.
   /// search_type: whether searching for SUCCESSOR, PREDECESSOR, or EXACT_MATCH
   /// For our purposes, in a BpTree node, searching for SUCCESSOR and EXACT_MATCH are exactly the same.
-  pub fn search_update(&mut self, key: T, new_ptr: PositionType, search_type: usize) -> PositionType {
+  pub fn search_update_index(&mut self, key: T, new_ptr: PositionType, search_type: usize) -> (usize, PositionType) {
     let mut index = 0;
     let mut exact_match = false;
     self.keys.search_succ_prefix(key, &mut index, &mut exact_match, self.len);
@@ -186,7 +262,7 @@ where
     index -= subtract_index as usize;
     let mut ret: PositionType = DUMMY_POS;
     self.ptrs.read_update(index, new_ptr, &mut ret);
-    ret
+    (index, ret)
   }
 }
 
@@ -208,6 +284,23 @@ where
   len: usize
 }
 
+/// UNDONE: figure out a safe implementation for Pod and Zeroable?
+unsafe impl<T, V, const B: usize> Zeroable for BpValueNode<T, V, B>
+where
+  T: Cmov + Pod + Ord,
+  V: Cmov + Pod,
+{}
+
+unsafe impl<T, V, const B: usize> Pod for BpValueNode<T, V, B>
+where
+  T: Cmov + Pod + Ord,
+  V: Cmov + Pod,
+{}
+
+impl_cmov_for_generic_pod_with_const!(
+  impl [T, V, const B: usize] for BpValueNode<T, V, B> where [T: Cmov + Pod + Ord, V: Cmov + Pod]
+);
+
 impl<T, V, const B: usize> Default for BpValueNode<T, V, B>
 where 
   T: Cmov + Pod + Ord,
@@ -227,16 +320,23 @@ where
   T: Cmov + Pod + Ord,
   V: Cmov + Pod
 {
+  /// UNDONE: make this implementation less bad.
   /// initialize with data. If the key supports comparisons, it should be already sorted from smallest to largest.
   /// len refers to the number of keys. 
-  pub fn new(keys: [T;B], values: [V; B], len: usize) -> Self {
+  pub fn new(keys: &[T], values: &[V], len: usize) -> Self {
     debug_assert!(keys.windows(2).all(|window| window[0] <= window[1]));
+    debug_assert!(keys.len() >= len && values.len() >= len);
     
-    Self { 
-      keys: ObliviousArray{data: keys},
-      values: ObliviousArray { data: values},
+    let mut new_node = Self { 
+      keys: ObliviousArray{data: [T::zeroed(); B]},
+      values: ObliviousArray { data: [V::zeroed(); B]},
       len: len
-    }
+    };
+
+    new_node.keys.renew(keys);
+    new_node.values.renew(values);
+
+    new_node
   }
   ///reinitialize with new data. If the key supports comparisons, it should be already sorted from smallest to largest.
   pub fn renew(&mut self, keys: &[T;B], values: &[V; B], len: usize) {

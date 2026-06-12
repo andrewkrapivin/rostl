@@ -518,6 +518,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rostl-obst"
+version = "0.1.0-alpha9"
+dependencies = [
+ "bytemuck",
+ "rand",
+ "rostl-oram",
+ "rostl-primitives",
+ "rostl-sort",
+]
+
+[[package]]
 name = "rostl-oram"
 version = "0.1.0-alpha9"
 dependencies = [

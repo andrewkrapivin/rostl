@@ -13,6 +13,7 @@ platform = "x86_64"
 [workspace]
 members = [
   "crates/datastructures",
+  "crates/obst",
   "crates/oram",
   "crates/primitives",
   "crates/sort",
@@ -145,6 +146,7 @@ overflow-checks = true
 
 [workspace.dependencies]
 rostl-datastructures = { path = "crates/datastructures", version = "0.1.0-alpha9" }
+rostl-obst = { path = "crates/obst", version = "0.1.0-alpha9" }
 rostl-oram = { path = "crates/oram", version = "0.1.0-alpha9" }
 rostl-primitives = { path = "crates/primitives", version = "0.1.0-alpha9" }
 rostl-sort = { path = "crates/sort", version = "0.1.0-alpha9" }
@@ -165,4 +167,3 @@ seq-macro = "0.3.6"
 # [workspace.dev-dependencies]
 criterion = "0.8.1"
 criterion-cycles-per-byte = "0.8.0"
-
