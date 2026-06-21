@@ -2,11 +2,11 @@
 use bytemuck::{Pod, Zeroable};
 use rand::{rng, Rng};
 use rostl_oram::{
-  circuit_oram::{remove_element, write_block_to_empty_slot, Block, CircuitORAM, S, Z},
+  circuit_oram::{remove_element, write_block_to_empty_slot, Block, CircuitORAM, B, S, Z},
   heap_tree::HeapTree,
   prelude::{PositionType, K},
 };
-use rostl_primitives::traits::{Cmov, _Cmovbase};
+use rostl_primitives::traits::{_Cmovbase, Cmov};
 use rostl_primitives::{cmov_body, cxchg_body, impl_cmov_for_generic_pod};
 
 #[derive(Clone, Copy, Debug, Zeroable)]
@@ -58,7 +58,7 @@ where
   pub fn new(n: usize) -> Self {
     let data = CircuitORAM::new(n);
     let default_value = Block::<HeapElement<V>>::default();
-    let metadata = HeapTree::new_with(data.h, default_value);
+    let metadata = HeapTree::new_with_branching_factor_and_value(data.h, B, default_value);
     Self { data, metadata, max_size: n, timestamp: 0 }
   }
 
@@ -90,16 +90,10 @@ where
     println!("Stash: {:?}", data.stash);
     for i in 0..data.h {
       print!("Level {i}: ");
-      for j in 0..(1 << i) {
-        print!("{} ", j << (data.h - 1 - i));
+      for j in 0..data.tree.level_width(i) {
+        print!("{} ", j);
         print!("data.h:{} ", data.h);
-        print!(
-          "{:?} ",
-          data.tree.get_path_at_depth(
-            i,
-            ((j << (data.h - 1 - i)) as u32).reverse_bits() >> (32 - data.h + 1)
-          )
-        );
+        print!("{:?} ", data.tree.get_path_at_depth(i, j as PositionType));
       }
       println!();
     }
@@ -117,17 +111,23 @@ where
     let mut curr_min = Block::<HeapElement<V>>::default();
     curr_min.value.key = K::MAX;
 
-    for elems in data.stash[S..(S + self.data.h * Z)].chunks(2).rev() {
+    for elems in data.stash[S..(S + self.data.h * Z)].chunks(Z).rev() {
       for elem in elems {
         let should_mov = (!elem.is_empty()) & (elem.value.key < curr_min.value.key);
         curr_min.cmov(elem, should_mov);
       }
 
       if h_index != metadata.height {
-        let sibling = metadata.get_sibling(h_index, pos);
+        let digit_scale = metadata.branching_factor.pow((h_index - 1) as u32);
+        let current_digit = (pos as usize / digit_scale) % metadata.branching_factor;
 
-        let should_mov = (!sibling.is_empty()) & (sibling.value.key < curr_min.value.key);
-        curr_min.cmov(sibling, should_mov);
+        for sibling_digit in 0..metadata.branching_factor {
+          let sibling = metadata.get_sibling_at(h_index, pos, sibling_digit);
+          let should_mov = (sibling_digit != current_digit)
+            & (!sibling.is_empty())
+            & (sibling.value.key < curr_min.value.key);
+          curr_min.cmov(sibling, should_mov);
+        }
       }
 
       *metadata.get_path_at_depth_mut(h_index - 1, pos) = curr_min;

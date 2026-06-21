@@ -6,14 +6,21 @@
 use bytemuck::{Pod, Zeroable};
 use rostl_primitives::{
   cmov_body, cxchg_body, impl_cmov_for_generic_pod,
-  traits::{Cmov, _Cmovbase},
+  traits::{_Cmovbase, Cmov},
 };
 
 use crate::heap_tree::HeapTree;
 use crate::prelude::{PositionType, DUMMY_POS, K};
 
+/// Branching factor of the ORAM tree.
+///
+/// `B` is public configuration and must remain a power of two. Paths are
+/// interpreted as base-`B` digits packed into `PositionType`, starting from the
+/// least significant bits.
+pub const B: usize = 4;
+const B_BITS: u32 = B.trailing_zeros();
 /// Blocks per bucket
-pub const Z: usize = 2;
+pub const Z: usize = 4;
 /// Initial stash size
 pub const S: usize = 20;
 const EVICTIONS_PER_OP: usize = 2; // Evictions per operations
@@ -81,7 +88,7 @@ impl<V: Cmov + Pod> HeapTree<Bucket<V>> {
   /// [Bucket0 (Root): [Block0, Block1], Bucket1 (Level1): [Block2, Block3], ...]
   #[inline]
   pub fn read_path(&mut self, path: PositionType, out: &mut [Block<V>]) {
-    debug_assert!((path as usize) < (1 << self.height));
+    debug_assert!((path as usize) < self.leaf_count());
     debug_assert!(out.len() == self.height * Z);
     for i in 0..self.height {
       let index = self.get_index(i, path);
@@ -94,7 +101,7 @@ impl<V: Cmov + Pod> HeapTree<Bucket<V>> {
   /// [Bucket0 (Root): [Block0, Block1], Bucket1 (Level1): [Block2, Block3], ...]
   #[inline]
   pub fn write_path(&mut self, path: PositionType, in_: &[Block<V>]) {
-    debug_assert!((path as usize) < (1 << self.height));
+    debug_assert!((path as usize) < self.leaf_count());
     debug_assert!(in_.len() == self.height * Z);
     for i in 0..self.height {
       let index = self.get_index(i, path);
@@ -174,33 +181,23 @@ pub fn write_block_to_empty_slot<V: Cmov + Pod>(arr: &mut [Block<V>], val: &Bloc
   rv
 }
 
-/// Reverses the bits of a given number up to a specified number of bits.
-///
-/// # Arguments
-///
-/// * `num` - The number whose bits are to be reversed.
-/// * `bits` - The number of bits to consider for the reversal.
-///
-/// # Returns
-///
-/// The number with its bits reversed.
 #[inline]
-pub fn reverse_bits(n: usize, bits: usize) -> usize {
-  let mut result = 0;
-  let mut value = n;
-
-  for _ in 0..bits {
-    result = (result << 1) | (value & 1);
-    value >>= 1;
-  }
-
-  result
+fn common_suffix_length(a: PositionType, b: PositionType) -> u32 {
+  let w = a ^ b;
+  w.trailing_zeros() / B_BITS
 }
 
-#[inline]
-const fn common_suffix_length(a: PositionType, b: PositionType) -> u32 {
-  let w = a ^ b;
-  w.trailing_zeros()
+fn height_and_leaf_count(max_n: usize) -> (usize, usize) {
+  debug_assert!(B.is_power_of_two());
+
+  let mut height = 1;
+  let mut leaf_count = 1usize;
+  while leaf_count < max_n {
+    leaf_count = leaf_count.checked_mul(B).expect("ORAM tree capacity overflow");
+    height += 1;
+  }
+
+  (height, leaf_count)
 }
 
 impl<V: Cmov + Pod + Default + Clone + std::fmt::Debug> CircuitORAM<V> {
@@ -219,18 +216,12 @@ impl<V: Cmov + Pod + Default + Clone + std::fmt::Debug> CircuitORAM<V> {
     debug_assert!(max_n > 1);
     debug_assert!(max_n <= u32::MAX as usize);
 
-    let h = {
-      let h0 = (max_n).ilog2() as usize;
-      if (1 << h0) < max_n {
-        h0 + 2
-      } else {
-        h0 + 1
-      }
-    };
-    let tree = HeapTree::new(h);
+    let (h, max_n) = height_and_leaf_count(max_n);
+    debug_assert!(max_n <= PositionType::MAX as usize);
+
+    let tree = HeapTree::new_with_branching_factor(h, B);
     let stash = vec![Block::<V>::default(); S + h * Z];
 
-    let max_n = 2usize.pow((h - 1) as u32);
     Self { max_n, h, stash, tree, evict_counter: 0 }
   }
 
@@ -575,15 +566,8 @@ impl<V: Cmov + Pod + Default + Clone + std::fmt::Debug> CircuitORAM<V> {
     println!("Stash: {:?}", self.stash);
     for i in 0..self.h {
       print!("Level {i}: ");
-      for j in 0..(1 << i) {
-        let w_j = reverse_bits(j, i);
-        print!(
-          "{:?} ",
-          self.tree.get_path_at_depth(
-            i,
-            reverse_bits(w_j * (1 << (self.h - 1 - i)), self.h - 1) as PositionType
-          )
-        );
+      for j in 0..self.tree.level_width(i) {
+        print!("{:?} ", self.tree.get_path_at_depth(i, j as PositionType));
       }
       println!();
     }
@@ -601,6 +585,22 @@ mod tests {
     for elem in &oram.stash[..S] {
       debug_assert!(elem.is_empty());
     }
+  }
+
+  #[test]
+  fn test_quaternary_parameters() {
+    let oram = CircuitORAM::<u64>::new(8);
+
+    assert_eq!(B, 4);
+    assert_eq!(Z, 4);
+    assert_eq!(oram.h, 3);
+    assert_eq!(oram.max_n, 16);
+    assert_eq!(oram.tree.branching_factor, B);
+    assert_eq!(oram.tree.leaf_count(), oram.max_n);
+    assert_eq!(oram.stash.len(), S + oram.h * Z);
+
+    assert_eq!(common_suffix_length(0b1111, 0b0011), 1);
+    assert_eq!(common_suffix_length(0b1111, 0b1100), 0);
   }
 
   #[test]
