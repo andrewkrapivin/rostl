@@ -1,0 +1,29 @@
+[package]
+name = "rostl-obst"
+description = "Oblivious search tree data structures for secure and efficient computation."
+readme = "README.crate.md"
+version = "0.1.0-alpha9"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+exclude.workspace = true
+homepage.workspace = true
+
+[dependencies]
+rostl-oram.workspace = true
+rostl-primitives.workspace = true
+rostl-sort.workspace = true
+rand.workspace = true
+
+bytemuck.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[lints]
+workspace = true
+
+[[bench]]
+name="path_static_b_tree"
+harness=false

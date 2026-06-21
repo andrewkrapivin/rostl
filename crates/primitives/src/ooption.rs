@@ -40,6 +40,11 @@ where
     ret.cmov(&self.value, self.is_some);
     ret
   }
+
+  /// cmov, except destination is other, and only performs the cmov if is_some
+  pub fn cmov_to_other_if_some(&self, other: &mut T, choice: bool) {
+    other.cmov(&self.value, self.is_some && choice);
+  }
 }
 
 impl<T> OOption<T>

@@ -522,6 +522,7 @@ name = "rostl-obst"
 version = "0.1.0-alpha9"
 dependencies = [
  "bytemuck",
+ "criterion",
  "rand",
  "rostl-oram",
  "rostl-primitives",
