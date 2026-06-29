@@ -187,17 +187,17 @@ fn common_suffix_length(a: PositionType, b: PositionType) -> u32 {
   w.trailing_zeros() / B_BITS
 }
 
-fn height_and_leaf_count(max_n: usize) -> (usize, usize) {
+fn tree_height(leaf_count: usize) -> usize {
   debug_assert!(B.is_power_of_two());
 
   let mut height = 1;
-  let mut leaf_count = 1usize;
-  while leaf_count < max_n {
-    leaf_count = leaf_count.checked_mul(B).expect("ORAM tree capacity overflow");
+  let mut capacity = 1usize;
+  while capacity < leaf_count {
+    capacity = capacity.checked_mul(B).expect("ORAM tree capacity overflow");
     height += 1;
   }
 
-  (height, leaf_count)
+  height
 }
 
 impl<V: Cmov + Pod + Default + Clone + std::fmt::Debug> CircuitORAM<V> {
@@ -216,11 +216,11 @@ impl<V: Cmov + Pod + Default + Clone + std::fmt::Debug> CircuitORAM<V> {
     debug_assert!(max_n > 1);
     debug_assert!(max_n <= u32::MAX as usize);
 
-    let (h, max_n) = height_and_leaf_count(max_n);
+    let h = tree_height(max_n);
     debug_assert!(max_n <= PositionType::MAX as usize);
 
-    let tree = HeapTree::new_with_branching_factor(h, B);
-    let stash = vec![Block::<V>::default(); S + h * Z];
+    let tree = HeapTree::new_with_leaf_count_and_value(h, B, max_n, Bucket::<V>::default());
+    let stash = vec![Block::<V>::default(); S + h * Z * B / 2];
 
     Self { max_n, h, stash, tree, evict_counter: 0 }
   }
@@ -594,10 +594,10 @@ mod tests {
     assert_eq!(B, 4);
     assert_eq!(Z, 4);
     assert_eq!(oram.h, 3);
-    assert_eq!(oram.max_n, 16);
+    assert_eq!(oram.max_n, 8);
     assert_eq!(oram.tree.branching_factor, B);
     assert_eq!(oram.tree.leaf_count(), oram.max_n);
-    assert_eq!(oram.stash.len(), S + oram.h * Z);
+    assert_eq!(oram.stash.len(), S + oram.h * Z * B / 2);
 
     assert_eq!(common_suffix_length(0b1111, 0b0011), 1);
     assert_eq!(common_suffix_length(0b1111, 0b1100), 0);
@@ -773,5 +773,85 @@ mod tests {
     test_circuitoram_repetitive_generic::<1024>();
   }
 
-  // UNDONE(git-24): Add a test to visualize circuit oram failure probability.
+  fn stash_occupancy<V: Cmov + Pod>(oram: &CircuitORAM<V>) -> usize {
+    oram.stash[..S].iter().filter(|block| !block.is_empty()).count()
+  }
+
+  /// Prints empirical stash-failure data in CSV form, similar to Figure 3 in the
+  /// Circuit ORAM paper. Run explicitly with:
+  ///
+  /// ```text
+  /// cargo test -p rostl-oram circuit_oram::tests::visualize_circuit_oram_failure_probability -- --ignored --nocapture
+  /// ```
+  #[test]
+  #[ignore]
+  fn visualize_circuit_oram_failure_probability() {
+    const TOTAL_KEYS: usize = 1234567;
+    const WARMUP_OPS: usize = 10_000;
+    const MEASURED_OPS: usize = 100_000_000;
+
+    let mut rng = rng();
+    let keys = (0..TOTAL_KEYS as K).collect::<Vec<K>>();
+    let mut values = (0..TOTAL_KEYS).map(|_| rng.random::<u64>()).collect::<Vec<u64>>();
+    let mut positions = (0..TOTAL_KEYS)
+      .map(|_| rng.random_range(0..TOTAL_KEYS as PositionType))
+      .collect::<Vec<PositionType>>();
+    let mut oram =
+      CircuitORAM::<u64>::new_with_positions_and_values(TOTAL_KEYS, &keys, &values, &positions);
+
+    let mut occupancy_histogram = [0usize; S + 1];
+    let mut max_observed_occupancy = 0usize;
+
+    for op_index in 0..(WARMUP_OPS + MEASURED_OPS) {
+      let key = rng.random_range(0..TOTAL_KEYS);
+      let new_pos = rng.random_range(0..oram.max_n as PositionType);
+      let op = rng.random_range(0..3);
+
+      if op == 0 {
+        let mut value = 0;
+        let found = oram.read(positions[key], new_pos, key as K, &mut value);
+        assert!(found);
+        assert_eq!(value, values[key]);
+      } else if op == 1 {
+        let value = rng.random::<u64>();
+        let found = oram.write(positions[key], new_pos, key as K, value);
+        assert!(found);
+        values[key] = value;
+      } else {
+        let value = rng.random::<u64>();
+        let (found, old_value) = oram.update(positions[key], new_pos, key as K, |v| {
+          let old_value = *v;
+          *v = value;
+          old_value
+        });
+        assert!(found);
+        assert_eq!(old_value, values[key]);
+        values[key] = value;
+      }
+
+      positions[key] = new_pos;
+
+      if op_index >= WARMUP_OPS {
+        let occupancy = stash_occupancy(&oram);
+        occupancy_histogram[occupancy] += 1;
+        max_observed_occupancy = max_observed_occupancy.max(occupancy);
+      }
+
+      if op_index % 100_000 == 0 {
+        println!("completed_ops,{op_index},current_stash_occupancy,{}", stash_occupancy(&oram));
+      }
+    }
+
+    println!("stash_size,observations,total_observations,time_fraction,overflow_probability");
+    let mut tail_count = MEASURED_OPS;
+    for (stash_size, observations) in occupancy_histogram.iter().enumerate() {
+      tail_count -= observations;
+      println!(
+        "{stash_size},{observations},{MEASURED_OPS},{},{}",
+        *observations as f64 / MEASURED_OPS as f64,
+        tail_count as f64 / MEASURED_OPS as f64
+      );
+    }
+    println!("max_observed_occupancy,{max_observed_occupancy}");
+  }
 }

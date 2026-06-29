@@ -18,7 +18,7 @@ pub fn benchmark_oram_initialization<T: Measurement + 'static>(c: &mut Criterion
   let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
   group.plot_config(plot_config);
 
-  let test_set = &[128, 1 << 10, 1 << 20];
+  let test_set = &[128, 1 << 10, 1 << 20, 1 << 24];
 
   for &size in test_set {
     group.bench_with_input(BenchmarkId::new("LinearORAM", size), &size, |b, &size| {
@@ -47,7 +47,7 @@ pub fn benchmark_oram_ops<T: Measurement + 'static>(c: &mut Criterion<T>) {
   let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
   group.plot_config(plot_config);
 
-  let test_set = &[128, 1 << 10, 1 << 20];
+  let test_set = &[128, 1 << 10, 1 << 20, 1 << 24];
 
   for &size in test_set {
     group.bench_with_input(BenchmarkId::new("LinearORAM_Read", size), &size, |b, &size| {

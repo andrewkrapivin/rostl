@@ -122,6 +122,11 @@ where
         let current_digit = (pos as usize / digit_scale) % metadata.branching_factor;
 
         for sibling_digit in 0..metadata.branching_factor {
+          let sibling_path =
+            pos as usize + (sibling_digit * digit_scale) - (current_digit * digit_scale);
+          if sibling_path >= metadata.leaf_count() {
+            continue;
+          }
           let sibling = metadata.get_sibling_at(h_index, pos, sibling_digit);
           let should_mov = (sibling_digit != current_digit)
             & (!sibling.is_empty())

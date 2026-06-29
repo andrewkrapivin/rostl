@@ -18,6 +18,8 @@ pub struct HeapTree<T> {
   pub height: usize,
   /// Number of children of each internal node.
   pub branching_factor: usize,
+  /// Number of leaves in the tree.
+  pub leaf_count: usize,
 }
 
 impl<T> HeapTree<T>
@@ -50,9 +52,24 @@ where
     branching_factor: usize,
     default: T,
   ) -> Self {
+    let leaf_count = level_width(height.saturating_sub(1), branching_factor);
+    Self::new_with_leaf_count_and_value(height, branching_factor, leaf_count, default)
+  }
+
+  /// Initializes a new heap tree with a certain height, branching factor, leaf count, and default value.
+  pub fn new_with_leaf_count_and_value(
+    height: usize,
+    branching_factor: usize,
+    leaf_count: usize,
+    default: T,
+  ) -> Self {
     assert!(branching_factor >= 2);
-    let tree = vec![default; node_count(height, branching_factor)];
-    Self { tree, height, branching_factor }
+    assert!(height > 0);
+    assert!(leaf_count > 0);
+    debug_assert!(leaf_count <= level_width(height - 1, branching_factor));
+    debug_assert!(height == 1 || leaf_count > level_width(height - 2, branching_factor));
+    let tree = vec![default; node_count(height, branching_factor, leaf_count)];
+    Self { tree, height, branching_factor, leaf_count }
   }
 }
 
@@ -61,38 +78,48 @@ impl<T> HeapTree<T> {
   #[inline]
   pub fn level_width(&self, depth: usize) -> usize {
     debug_assert!(depth < self.height);
-    level_width(depth, self.branching_factor)
+    level_width(depth, self.branching_factor).min(self.leaf_count)
   }
 
   /// Returns the number of leaves in the tree.
   #[inline]
   pub fn leaf_count(&self) -> usize {
-    if self.height == 0 {
-      0
-    } else {
-      self.level_width(self.height - 1)
-    }
+    self.leaf_count
   }
 
   /// Get the index of a node at a certain depth and path
   #[inline]
   pub fn get_index(&self, depth: usize, path: PositionType) -> usize {
     debug_assert!(depth < self.height);
+    debug_assert!((path as usize) < self.leaf_count);
     if self.branching_factor == 2 {
       let level_offset = (1 << depth) - 1;
       let mask = level_offset;
+      if self.level_width(depth) == level_width(depth, self.branching_factor) {
+        return level_offset + (path as usize & mask);
+      }
+    }
+
+    if self.branching_factor == 2 {
+      let level_offset = node_count(depth, self.branching_factor, self.leaf_count);
+      let mask = (1 << depth) - 1;
       return level_offset + (path as usize & mask);
     }
 
     if self.branching_factor.is_power_of_two() {
       let shift = depth * self.branching_factor.trailing_zeros() as usize;
       let mask = (1 << shift) - 1;
-      let level_offset = mask / (self.branching_factor - 1);
+      if self.level_width(depth) == level_width(depth, self.branching_factor) {
+        let level_offset = mask / (self.branching_factor - 1);
+        return level_offset + (path as usize & mask);
+      }
+
+      let level_offset = node_count(depth, self.branching_factor, self.leaf_count);
       return level_offset + (path as usize & mask);
     }
 
     let level_width = self.level_width(depth);
-    node_count(depth, self.branching_factor) + (path as usize % level_width)
+    node_count(depth, self.branching_factor, self.leaf_count) + (path as usize % level_width)
   }
 
   /// Get a node of a certain path at a certain depth
@@ -141,16 +168,18 @@ impl<T> HeapTree<T> {
 }
 
 #[inline]
-fn node_count(height: usize, branching_factor: usize) -> usize {
+fn node_count(height: usize, branching_factor: usize, leaf_count: usize) -> usize {
   if height == 0 {
     0
-  } else if branching_factor == 2 {
+  } else if leaf_count >= level_width(height - 1, branching_factor) && branching_factor == 2 {
     (1 << height) - 1
-  } else if branching_factor.is_power_of_two() {
+  } else if leaf_count >= level_width(height - 1, branching_factor)
+    && branching_factor.is_power_of_two()
+  {
     let shift = height * branching_factor.trailing_zeros() as usize;
     ((1 << shift) - 1) / (branching_factor - 1)
   } else {
-    (branching_factor.pow(height as u32) - 1) / (branching_factor - 1)
+    (0..height).map(|depth| level_width(depth, branching_factor).min(leaf_count)).sum()
   }
 }
 
@@ -235,5 +264,22 @@ mod tests {
     assert_eq!(*tree.get_sibling_at(2, 14, 1), tree.get_index(2, 6));
     assert_eq!(*tree.get_sibling_at(2, 14, 2), tree.get_index(2, 10));
     assert_eq!(*tree.get_sibling_at(2, 14, 3), tree.get_index(2, 14));
+  }
+
+  #[test]
+  fn quaternary_tree_does_not_require_full_bottom_layer() {
+    let tree = HeapTree::<usize>::new_with_leaf_count_and_value(3, 4, 8, 0);
+
+    assert_eq!(tree.branching_factor, 4);
+    assert_eq!(tree.height, 3);
+    assert_eq!(tree.leaf_count(), 8);
+    assert_eq!(tree.level_width(0), 1);
+    assert_eq!(tree.level_width(1), 4);
+    assert_eq!(tree.level_width(2), 8);
+    assert_eq!(tree.tree.len(), 13);
+
+    assert_eq!(tree.get_index(0, 7), 0);
+    assert_eq!(tree.get_index(1, 7), 4);
+    assert_eq!(tree.get_index(2, 7), 12);
   }
 }
