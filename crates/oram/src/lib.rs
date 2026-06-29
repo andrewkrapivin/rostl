@@ -5,6 +5,8 @@ pub mod linear_oram;
 
 pub mod circuit_oram;
 
+pub mod fast_circuit_oram;
+
 pub mod prelude;
 
 pub mod recursive_oram;
