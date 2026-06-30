@@ -42,6 +42,12 @@ use static_assertions::const_assert_eq;
 
 use crate::prelude::PositionType;
 
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2"))]
+#[cfg(target_arch = "x86")]
+use core::arch::x86::_pdep_u64;
+#[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
+use core::arch::x86_64::_pdep_u64;
+
 /// Number of `(key, pos)` pairs in a cache-line counter bucket.
 pub const CACHELINE_COUNTER_BUCKET_BLOCKS: usize = 2;
 /// Number of `u32` words used by the key/position slots.
@@ -162,10 +168,10 @@ impl Cacheline_Counter_Bucket {
   /// Width-zero counters return 0. Nonzero-width counters return the packed
   /// payload value plus 1.
   ///
-  /// # Oblivious
-  /// This uses fixed-word metadata scans, popcount-based bit selection, and a
-  /// fixed set of shifts over the counter payload.
-  #[inline]
+  /// # Memory access
+  /// This reads metadata and payload from the single cache line backing the
+  /// bucket. The optimized metadata selector branches within that cache line.
+  #[inline(always)]
   pub fn get_counter(&self, index: usize) -> u64 {
     let (start, end) = self.get_counter_endpoints(index, index + 1);
     let width = end - start;
@@ -179,41 +185,22 @@ impl Cacheline_Counter_Bucket {
   /// for the single counter at `start_index`. Empty or all-zero-width ranges
   /// have equal start/end offsets.
   ///
-  /// # Oblivious
-  /// This scans the fixed-size metadata bitmap once.
-  #[inline]
+  /// # Memory access
+  /// This reads metadata from the single cache line backing the bucket. The
+  /// optimized metadata selector branches within that cache line.
+  #[inline(always)]
   pub fn get_counter_endpoints(&self, start_index: usize, end_index: usize) -> (usize, usize) {
     debug_assert!(start_index <= end_index);
     debug_assert!(end_index <= CACHELINE_COUNTER_BUCKET_COUNTERS);
 
     let words = self.metadata_words();
-    let start_target = start_index.wrapping_sub(1);
-    let end_target = end_index.wrapping_sub(1);
-    let need_start = start_index != 0;
-    let need_end = end_index != 0;
-    let mut ones_before = 0usize;
-    let mut start = 0usize;
-    let mut end = 0usize;
-
-    for (word_index, word) in words.iter().enumerate() {
-      let word = *word & METADATA_WORD_MASKS[word_index];
-      let ones_in_word = word.count_ones() as usize;
-      let word_offset = word_index * 64;
-
-      let start_in_word =
-        need_start & (start_target >= ones_before) & (start_target < ones_before + ones_in_word);
-      let start_rank = start_target.wrapping_sub(ones_before);
-      let start_delimiter = word_offset + select_nth_one_u64(word, start_rank);
-      start = select_usize(start, start_delimiter.wrapping_sub(start_target), start_in_word);
-
-      let end_in_word =
-        need_end & (end_target >= ones_before) & (end_target < ones_before + ones_in_word);
-      let end_rank = end_target.wrapping_sub(ones_before);
-      let end_delimiter = word_offset + select_nth_one_u64(word, end_rank);
-      end = select_usize(end, end_delimiter.wrapping_sub(end_target), end_in_word);
-
-      ones_before += ones_in_word;
-    }
+    let start = if start_index == 0 {
+      0
+    } else {
+      select_delimiter(words, start_index - 1) - (start_index - 1)
+    };
+    let end =
+      if end_index == 0 { 0 } else { select_delimiter(words, end_index - 1) - (end_index - 1) };
 
     (start, end)
   }
@@ -226,11 +213,10 @@ impl Cacheline_Counter_Bucket {
   /// Otherwise, the counter is incremented and the payload continues to store
   /// `counter - 1`.
   ///
-  /// # Oblivious
-  /// This uses fixed-word popcount/leading-zero selection, word shifts by zero
-  /// or one bit, and masked multiword addition. The memory footprint is the
-  /// single cache line backing the bucket.
-  #[inline]
+  /// # Memory access
+  /// This updates metadata and payload inside the single cache line backing the
+  /// bucket. The optimized metadata selector branches within that cache line.
+  #[inline(always)]
   pub fn increment_counter(&mut self, index: usize) -> bool {
     let location = self.counter_location(index);
     let end = location.start + location.width;
@@ -254,58 +240,34 @@ impl Cacheline_Counter_Bucket {
     can_increment
   }
 
-  #[inline]
+  #[inline(always)]
   fn counter_location(&self, index: usize) -> CounterLocation {
     debug_assert!(index < CACHELINE_COUNTER_BUCKET_COUNTERS);
 
     let words = self.metadata_words();
-    let mut ones_before = 0usize;
-    let mut previous_delimiter = usize::MAX;
-    let mut delimiter = 0usize;
-    let mut last_delimiter = usize::MAX;
-
-    for (word_index, word) in words.iter().enumerate() {
-      let word = *word & METADATA_WORD_MASKS[word_index];
-      let ones_in_word = word.count_ones() as usize;
-      let current_in_word = (index >= ones_before) & (index < ones_before + ones_in_word);
-      let rank_in_word = index.wrapping_sub(ones_before);
-      let word_offset = word_index * 64;
-      let current_relative = select_nth_one_u64(word, rank_in_word);
-      let current_delimiter = word_offset + current_relative;
-
-      let lower_bits = word & low_bits_mask(current_relative);
-      let previous_relative = 63usize.wrapping_sub(lower_bits.leading_zeros() as usize);
-      let previous_in_word = word_offset.wrapping_add(previous_relative);
-      let previous_candidate = select_usize(last_delimiter, previous_in_word, lower_bits != 0);
-
-      previous_delimiter = select_usize(previous_delimiter, previous_candidate, current_in_word);
-      delimiter = select_usize(delimiter, current_delimiter, current_in_word);
-
-      let last_relative = 63usize.wrapping_sub(word.leading_zeros() as usize);
-      let last_in_word = word_offset.wrapping_add(last_relative);
-      last_delimiter = select_usize(last_delimiter, last_in_word, word != 0);
-      ones_before += ones_in_word;
-    }
+    let previous_delimiter =
+      if index == 0 { usize::MAX } else { select_delimiter(words, index - 1) };
+    let delimiter = select_delimiter(words, index);
 
     let width = delimiter.wrapping_sub(previous_delimiter).wrapping_sub(1);
     let end = delimiter.wrapping_sub(index);
     let start = end.wrapping_sub(width);
-    let used_bits = last_delimiter.wrapping_sub(CACHELINE_COUNTER_BUCKET_COUNTERS - 1);
+    let used_bits = last_delimiter(words).wrapping_sub(CACHELINE_COUNTER_BUCKET_COUNTERS - 1);
 
     CounterLocation { start, width, delimiter, used_bits }
   }
 
-  #[inline]
-  const fn counter_at(&self, start: usize, width: usize) -> u64 {
-    extract_u64(self.counter_words(), start, width)
+  #[inline(always)]
+  fn counter_at(&self, start: usize, width: usize) -> u64 {
+    extract_counter_u64(self.counter_words(), start, width)
   }
 
-  #[inline]
+  #[inline(always)]
   const fn metadata_words(&self) -> [u64; METADATA_WORDS] {
     [self.raw[2], self.raw[3], self.raw[4], self.raw[5] & U32_MASK]
   }
 
-  #[inline]
+  #[inline(always)]
   const fn set_metadata_words(&mut self, words: [u64; METADATA_WORDS]) {
     self.raw[2] = words[0];
     self.raw[3] = words[1];
@@ -313,7 +275,7 @@ impl Cacheline_Counter_Bucket {
     self.raw[5] = (self.raw[5] & !U32_MASK) | (words[3] & U32_MASK);
   }
 
-  #[inline]
+  #[inline(always)]
   const fn counter_words(&self) -> [u64; COUNTER_WORDS] {
     [
       (self.raw[5] >> 32) | (self.raw[6] << 32),
@@ -322,7 +284,7 @@ impl Cacheline_Counter_Bucket {
     ]
   }
 
-  #[inline]
+  #[inline(always)]
   const fn set_counter_words(&mut self, words: [u64; COUNTER_WORDS]) {
     self.raw[5] = (self.raw[5] & U32_MASK) | (words[0] << 32);
     self.raw[6] = (words[0] >> 32) | (words[1] << 32);
@@ -330,8 +292,68 @@ impl Cacheline_Counter_Bucket {
   }
 }
 
-#[inline]
-const fn select_nth_one_u64(word: u64, rank: usize) -> usize {
+#[inline(always)]
+fn select_delimiter(words: [u64; METADATA_WORDS], rank: usize) -> usize {
+  let word0 = words[0];
+  let count0 = word0.count_ones() as usize;
+  if rank < count0 {
+    return select_nth_one_u64(word0, rank);
+  }
+
+  let word1 = words[1];
+  let rank = rank - count0;
+  let count1 = word1.count_ones() as usize;
+  if rank < count1 {
+    return 64 + select_nth_one_u64(word1, rank);
+  }
+
+  let word2 = words[2];
+  let rank = rank - count1;
+  let count2 = word2.count_ones() as usize;
+  if rank < count2 {
+    return 128 + select_nth_one_u64(word2, rank);
+  }
+
+  192 + select_nth_one_u64(words[3] & U32_MASK, rank - count2)
+}
+
+#[inline(always)]
+fn last_delimiter(words: [u64; METADATA_WORDS]) -> usize {
+  let word3 = words[3] & U32_MASK;
+  if word3 != 0 {
+    return 192 + (u64::BITS as usize - 1 - word3.leading_zeros() as usize);
+  }
+
+  let word2 = words[2];
+  if word2 != 0 {
+    return 128 + (u64::BITS as usize - 1 - word2.leading_zeros() as usize);
+  }
+
+  let word1 = words[1];
+  if word1 != 0 {
+    return 64 + (u64::BITS as usize - 1 - word1.leading_zeros() as usize);
+  }
+
+  u64::BITS as usize - 1 - words[0].leading_zeros() as usize
+}
+
+#[inline(always)]
+fn select_nth_one_u64(word: u64, rank: usize) -> usize {
+  #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2"))]
+  {
+    let selected = unsafe { _pdep_u64(1u64 << (rank & 63), word) };
+    return selected.trailing_zeros() as usize;
+  }
+
+  #[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))]
+  {
+    select_nth_one_u64_scalar(word, rank)
+  }
+}
+
+#[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))]
+#[inline(always)]
+const fn select_nth_one_u64_scalar(word: u64, rank: usize) -> usize {
   let (word, rank, offset) = select_nth_one_step(word, rank, 0, 32);
   let (word, rank, offset) = select_nth_one_step(word, rank, offset, 16);
   let (word, rank, offset) = select_nth_one_step(word, rank, offset, 8);
@@ -345,7 +367,8 @@ const fn select_nth_one_u64(word: u64, rank: usize) -> usize {
   offset + 63usize.wrapping_sub(selected.leading_zeros() as usize)
 }
 
-#[inline]
+#[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))]
+#[inline(always)]
 const fn select_nth_one_step(
   word: u64,
   rank: usize,
@@ -365,36 +388,32 @@ const fn select_nth_one_step(
   )
 }
 
-#[inline]
-const fn extract_u64<const N: usize>(words: [u64; N], start: usize, width: usize) -> u64 {
+#[inline(always)]
+fn extract_counter_u64(words: [u64; COUNTER_WORDS], start: usize, width: usize) -> u64 {
   let shift = start & 63;
   let word_index = start >> 6;
-  let mut out = 0u64;
-  let mut i = 0;
-
-  while i < N {
-    let high = if i + 1 < N { words[i + 1] } else { 0 };
-    let candidate = shr_pair(words[i], high, shift);
-    out = select_u64(out, candidate, i == word_index);
-    i += 1;
-  }
+  let out = match word_index {
+    0 => shr_pair(words[0], words[1], shift),
+    1 => shr_pair(words[1], words[2], shift),
+    _ => shr_pair(words[2], 0, shift),
+  };
 
   out & low_bits_mask(width)
 }
 
-#[inline]
+#[inline(always)]
 const fn shr_pair(low: u64, high: u64, shift: usize) -> u64 {
   low.wrapping_shr(shift as u32)
     | (high.wrapping_shl((64usize.wrapping_sub(shift) & 63) as u32) & mask_u64(shift != 0))
 }
 
-#[inline]
+#[inline(always)]
 const fn low_bits_mask(bits: usize) -> u64 {
   mask_u64(bits >= 64)
     | (1u64.wrapping_shl((bits & 63) as u32).wrapping_sub(1) & mask_u64(bits < 64))
 }
 
-#[inline]
+#[inline(always)]
 const fn insert_zero_bit<const N: usize>(
   words: [u64; N],
   bit_index: usize,
@@ -417,14 +436,14 @@ const fn insert_zero_bit<const N: usize>(
   out
 }
 
-#[inline]
+#[inline(always)]
 const fn low_mask_for_word(bit_index: usize, word_index: usize) -> u64 {
   let word_start = word_index * 64;
   let bits_in_word = bit_index.wrapping_sub(word_start) & mask_usize(bit_index >= word_start);
   low_bits_mask(bits_in_word)
 }
 
-#[inline]
+#[inline(always)]
 const fn add_bit<const N: usize>(
   mut words: [u64; N],
   bit_index: usize,
@@ -448,23 +467,24 @@ const fn add_bit<const N: usize>(
   words
 }
 
-#[inline]
+#[inline(always)]
 const fn mask_u64(choice: bool) -> u64 {
   0u64.wrapping_sub(choice as u64)
 }
 
-#[inline]
+#[inline(always)]
 const fn mask_usize(choice: bool) -> usize {
   0usize.wrapping_sub(choice as usize)
 }
 
-#[inline]
+#[inline(always)]
 const fn select_u64(old: u64, new: u64, choice: bool) -> u64 {
   let mask = mask_u64(choice);
   (old & !mask) | (new & mask)
 }
 
-#[inline]
+#[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))]
+#[inline(always)]
 const fn select_usize(old: usize, new: usize, choice: bool) -> usize {
   let mask = mask_usize(choice);
   (old & !mask) | (new & mask)
@@ -556,5 +576,42 @@ mod tests {
     assert_eq!(bucket.get_counter(0), u64::MAX);
     assert!(!bucket.increment_counter(0));
     assert_eq!(bucket.get_counter(0), u64::MAX);
+  }
+
+  #[test]
+  fn counters_match_reference_after_mixed_increment_patterns() {
+    let mut bucket = Cacheline_Counter_Bucket::default();
+    let mut reference = [0u64; CACHELINE_COUNTER_BUCKET_COUNTERS];
+
+    for round in 0..4 {
+      for step in 0..CACHELINE_COUNTER_BUCKET_COUNTERS {
+        let index = (step * 17 + round * 11) & 63;
+        assert!(bucket.increment_counter(index));
+        reference[index] += 1;
+
+        for (counter_index, expected) in reference.iter().enumerate() {
+          assert_eq!(bucket.get_counter(counter_index), *expected);
+        }
+      }
+    }
+
+    let mut expected_start = 0usize;
+    for (counter_index, expected) in reference.iter().enumerate() {
+      let width = if *expected == 0 {
+        0
+      } else {
+        let stored = *expected - 1;
+        usize::max(1, u64::BITS as usize - stored.leading_zeros() as usize)
+      };
+      assert_eq!(
+        bucket.get_counter_endpoints(counter_index, counter_index + 1),
+        (expected_start, expected_start + width)
+      );
+      expected_start += width;
+    }
+    assert_eq!(
+      bucket.get_counter_endpoints(0, CACHELINE_COUNTER_BUCKET_COUNTERS),
+      (0, expected_start)
+    );
   }
 }

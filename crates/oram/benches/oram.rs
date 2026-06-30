@@ -85,7 +85,7 @@ pub fn benchmark_oram_ops<T: Measurement + 'static>(c: &mut Criterion<T>) {
   group.finish();
 }
 
-fn seeded_counter_bucket() -> Cacheline_Counter_Bucket {
+fn two_increment_counter_bucket() -> Cacheline_Counter_Bucket {
   let mut bucket = Cacheline_Counter_Bucket::default();
   for index in 0..64 {
     bucket.increment_counter(index);
@@ -103,7 +103,7 @@ pub fn benchmark_fast_circuit_oram_bucket<T: Measurement + 'static>(c: &mut Crit
     std::any::type_name::<T>().split(':').next_back().unwrap()
   ));
 
-  let bucket = seeded_counter_bucket();
+  let bucket = two_increment_counter_bucket();
   group.throughput(Throughput::Elements(READ_OPS));
   group.bench_function("get_counter", |b| {
     b.iter(|| {
@@ -116,9 +116,9 @@ pub fn benchmark_fast_circuit_oram_bucket<T: Measurement + 'static>(c: &mut Crit
   });
 
   group.throughput(Throughput::Elements(INCREMENT_OPS));
-  group.bench_function("increment_no_grow", |b| {
+  group.bench_function("increment_grow_width1_to_width2", |b| {
     b.iter_batched(
-      seeded_counter_bucket,
+      two_increment_counter_bucket,
       |mut bucket| {
         for i in 0..INCREMENT_OPS {
           black_box(bucket.increment_counter(black_box(i as usize)));
@@ -129,7 +129,7 @@ pub fn benchmark_fast_circuit_oram_bucket<T: Measurement + 'static>(c: &mut Crit
     );
   });
 
-  group.bench_function("increment_grow_from_zero", |b| {
+  group.bench_function("increment_grow_width0_to_width1", |b| {
     b.iter_batched(
       Cacheline_Counter_Bucket::default,
       |mut bucket| {
