@@ -1,18 +1,11 @@
-//! Fast Circuit ORAM specialized for packed counters.
+//! Fast Circuit ORAM specialized for 1.5-cacheline packed counters.
 //!
-//! The address space has `max_n` counters. Counter address `key` is interpreted
-//! as `(prefix, suffix)`, where `suffix = key % 32` selects one counter inside a
-//! `Counter_Block` and `prefix = key / 32` selects the logical block. To avoid
-//! concentrating all large counters in one logical block, the ORAM stores the
-//! block under `target_key = prefix ^ values[suffix]`, where `values` is a
-//! fixed array of 32 random block-domain values sampled at construction time.
+//! This version uses `fast_buckets_15`: each logical counter block controls 64
+//! counters and occupies 96 bytes. Each ORAM bucket contains two blocks, so path
+//! read/write is a direct block copy over three cache lines per bucket.
 //! The suffix mask and counter slot are selected by scanning so that suffix does
-//! not select a cache line or word directly.
-//!
-//! Public `read` and `read_and_incr` take the current and next position for the
-//! shuffled block. The position map is caller-owned, as in `CircuitORAM`.
-//! `position_map_key` exposes the shuffled block id the caller should use for
-//! that external map.
+//! not select a cache line or word directly. The position map is caller-owned,
+//! as in `CircuitORAM`.
 
 #![allow(clippy::needless_bitwise_bool)]
 
@@ -21,9 +14,9 @@ use rostl_primitives::traits::Cmov;
 
 use crate::{
   circuit_oram::{S, Z},
-  fast_buckets::{
-    Cacheline_Counter_Bucket, Counter_Block, CACHELINE_COUNTER_BLOCK_COUNTERS,
-    CACHELINE_COUNTER_BUCKET_BLOCKS,
+  fast_buckets_15::{
+    Cacheline_Counter_Bucket_15, Counter_Block_15, COUNTER_15_BLOCK_COUNTERS,
+    COUNTER_15_BUCKET_BLOCKS,
   },
   heap_tree::HeapTree,
   prelude::PositionType,
@@ -31,44 +24,44 @@ use crate::{
 
 const EVICTIONS_PER_OP: usize = 2;
 
-/// Fast Circuit ORAM for an array of packed counters.
+/// Fast Circuit ORAM for packed counters using 1.5-cacheline blocks.
 #[derive(Debug)]
-pub struct FastCircuitCounterORAM {
+pub struct FastCircuitCounterORAM15 {
   /// Logical counter capacity requested by the caller.
   pub max_n: usize,
-  /// Number of logical `Counter_Block`s, rounded to a power of two.
+  /// Number of logical counter blocks, rounded to a power of two.
   pub max_blocks: usize,
   /// Height of the underlying ORAM tree.
   pub h: usize,
   /// Stash plus path buffer. First `S` entries are the persistent stash.
-  pub stash: Vec<Counter_Block>,
-  /// ORAM tree, with two counter blocks packed into each tree bucket.
-  pub tree: HeapTree<Cacheline_Counter_Bucket>,
-  /// Scratch buffer for staging a packed path before splitting or writing it.
-  pub path_buckets: Vec<Cacheline_Counter_Bucket>,
+  pub stash: Vec<Counter_Block_15>,
+  /// ORAM tree, with two 96-byte counter blocks in each bucket.
+  pub tree: HeapTree<Cacheline_Counter_Bucket_15>,
+  /// Scratch buffer for staging bucket paths before block copies.
+  pub path_buckets: Vec<Cacheline_Counter_Bucket_15>,
   /// Per-suffix xor mask for mapping `(prefix, suffix)` to a target block key.
-  values: [PositionType; CACHELINE_COUNTER_BLOCK_COUNTERS],
+  values: [PositionType; COUNTER_15_BLOCK_COUNTERS],
   /// Deterministic eviction counter.
   pub evict_counter: PositionType,
 }
 
-impl FastCircuitCounterORAM {
-  /// Creates a new counter ORAM with capacity for `max_n` counters.
+impl FastCircuitCounterORAM15 {
+  /// Creates a new 1.5-cacheline counter ORAM with capacity for `max_n` counters.
   pub fn new(max_n: usize) -> Self {
     debug_assert!(max_n > 0);
-    debug_assert!(max_n <= (u32::MAX as usize) * CACHELINE_COUNTER_BLOCK_COUNTERS);
+    debug_assert!(max_n <= (u32::MAX as usize) * COUNTER_15_BLOCK_COUNTERS);
 
-    let requested_blocks = max_n.div_ceil(CACHELINE_COUNTER_BLOCK_COUNTERS);
+    let requested_blocks = max_n.div_ceil(COUNTER_15_BLOCK_COUNTERS);
     let max_blocks = requested_blocks.next_power_of_two().max(2);
     debug_assert!(max_blocks <= u32::MAX as usize);
 
     let h = max_blocks.ilog2() as usize + 1;
     let tree = HeapTree::new(h);
-    let stash = vec![Counter_Block::default(); S + h * Z];
-    let path_buckets = vec![Cacheline_Counter_Bucket::default(); h];
+    let stash = vec![Counter_Block_15::default(); S + h * Z];
+    let path_buckets = vec![Cacheline_Counter_Bucket_15::default(); h];
 
     let mut rng = rng();
-    let mut values = [0; CACHELINE_COUNTER_BLOCK_COUNTERS];
+    let mut values = [0; COUNTER_15_BLOCK_COUNTERS];
     for mask in &mut values {
       *mask = random_position(&mut rng, max_blocks);
     }
@@ -117,7 +110,7 @@ impl FastCircuitCounterORAM {
   /// Returns the external position-map index for counter `(prefix, suffix)`.
   #[inline]
   pub fn position_map_key(&self, prefix: usize, suffix: usize) -> usize {
-    debug_assert!(suffix < CACHELINE_COUNTER_BLOCK_COUNTERS);
+    debug_assert!(suffix < COUNTER_15_BLOCK_COUNTERS);
     self.shuffled_key(prefix, suffix)
   }
 
@@ -131,8 +124,8 @@ impl FastCircuitCounterORAM {
   #[inline]
   fn address_parts(&self, key: usize) -> (usize, usize) {
     debug_assert!(key < self.max_n);
-    let prefix = key / CACHELINE_COUNTER_BLOCK_COUNTERS;
-    let suffix = key & (CACHELINE_COUNTER_BLOCK_COUNTERS - 1);
+    let prefix = key / COUNTER_15_BLOCK_COUNTERS;
+    let suffix = key & (COUNTER_15_BLOCK_COUNTERS - 1);
     (prefix, suffix)
   }
 
@@ -144,8 +137,8 @@ impl FastCircuitCounterORAM {
     suffix: usize,
     increment: bool,
   ) -> u64 {
-    debug_assert!(suffix < CACHELINE_COUNTER_BLOCK_COUNTERS);
-    debug_assert!(prefix * CACHELINE_COUNTER_BLOCK_COUNTERS + suffix < self.max_n);
+    debug_assert!(suffix < COUNTER_15_BLOCK_COUNTERS);
+    debug_assert!(prefix * COUNTER_15_BLOCK_COUNTERS + suffix < self.max_n);
     debug_assert!((pos as usize) < self.max_blocks);
     debug_assert!((new_pos as usize) < self.max_blocks);
 
@@ -154,7 +147,7 @@ impl FastCircuitCounterORAM {
 
     self.read_path_and_get_nodes(pos);
 
-    let mut block = Counter_Block::default();
+    let mut block = Counter_Block_15::default();
     let found = read_and_remove_block(&mut self.stash, target_key as u32, &mut block);
     block.set_key_pos(target_key as u32, new_pos);
 
@@ -192,10 +185,11 @@ impl FastCircuitCounterORAM {
     self.write_counter_path(pos);
   }
 
-  /// Reads all packed buckets on a path first, then expands them into blocks.
+  /// Reads all buckets on a path first, then copies their blocks into the path buffer.
   fn read_counter_path(&mut self, path: PositionType) {
     debug_assert!((path as usize) < (1 << self.h));
     debug_assert_eq!(self.path_buckets.len(), self.h);
+    debug_assert_eq!(COUNTER_15_BUCKET_BLOCKS, Z);
 
     for i in 0..self.h {
       let index = self.tree.get_index(i, path);
@@ -204,19 +198,19 @@ impl FastCircuitCounterORAM {
 
     let out = &mut self.stash[S..S + self.h * Z];
     for i in 0..self.h {
-      let blocks = self.path_buckets[i].split_into_blocks();
-      out[i * Z..(i + 1) * Z].copy_from_slice(&blocks);
+      out[i * Z..(i + 1) * Z].copy_from_slice(&self.path_buckets[i].blocks);
     }
   }
 
-  /// Merges all path blocks first, then writes packed buckets back to the tree.
+  /// Copies path blocks into buckets first, then writes the buckets back.
   fn write_counter_path(&mut self, path: PositionType) {
     debug_assert!((path as usize) < (1 << self.h));
     debug_assert_eq!(self.path_buckets.len(), self.h);
+    debug_assert_eq!(COUNTER_15_BUCKET_BLOCKS, Z);
 
     let in_ = &self.stash[S..S + self.h * Z];
     for i in 0..self.h {
-      self.path_buckets[i] = Cacheline_Counter_Bucket::merge_blocks([in_[i * Z], in_[i * Z + 1]]);
+      self.path_buckets[i].blocks.copy_from_slice(&in_[i * Z..(i + 1) * Z]);
     }
 
     for i in 0..self.h {
@@ -225,7 +219,7 @@ impl FastCircuitCounterORAM {
     }
   }
 
-  /// Alg. 4 - EvictOnceFast(path) specialized to `Counter_Block`.
+  /// Alg. 4 - EvictOnceFast(path) specialized to `Counter_Block_15`.
   pub fn evict_once_fast(&mut self, pos: PositionType) {
     let mut deepest: [i32; 64] = [-1; 64];
     let mut deepest_idx: [i32; 64] = [0; 64];
@@ -277,7 +271,7 @@ impl FastCircuitCounterORAM {
     }
     target[0].cmov(&dst, src == 0);
 
-    let mut hold = Counter_Block::default();
+    let mut hold = Counter_Block_15::default();
     for idx in 0..S + Z {
       let is_deepest = deepest_idx[0] == idx as i32;
       let read_and_remove_flag = is_deepest & (target[0] != -1);
@@ -334,37 +328,12 @@ impl FastCircuitCounterORAM {
   }
 }
 
-impl HeapTree<Cacheline_Counter_Bucket> {
-  /// Reads all counter blocks in a path into `out`.
-  #[inline]
-  pub fn read_counter_path(&mut self, path: PositionType, out: &mut [Counter_Block]) {
-    debug_assert!((path as usize) < (1 << self.height));
-    debug_assert!(out.len() == self.height * Z);
-    debug_assert_eq!(Z, CACHELINE_COUNTER_BUCKET_BLOCKS);
-
-    for i in 0..self.height {
-      let index = self.get_index(i, path);
-      let blocks = self.tree[index].split_into_blocks();
-      out[i * Z..(i + 1) * Z].copy_from_slice(&blocks);
-    }
-  }
-
-  /// Writes all counter blocks in a path from `in_`.
-  #[inline]
-  pub fn write_counter_path(&mut self, path: PositionType, in_: &[Counter_Block]) {
-    debug_assert!((path as usize) < (1 << self.height));
-    debug_assert!(in_.len() == self.height * Z);
-    debug_assert_eq!(Z, CACHELINE_COUNTER_BUCKET_BLOCKS);
-
-    for i in 0..self.height {
-      let index = self.get_index(i, path);
-      self.tree[index] = Cacheline_Counter_Bucket::merge_blocks([in_[i * Z], in_[i * Z + 1]]);
-    }
-  }
-}
-
 #[inline]
-fn read_and_remove_block(arr: &mut [Counter_Block], key: u32, ret: &mut Counter_Block) -> bool {
+fn read_and_remove_block(
+  arr: &mut [Counter_Block_15],
+  key: u32,
+  ret: &mut Counter_Block_15,
+) -> bool {
   let mut rv = false;
 
   for item in arr {
@@ -380,7 +349,7 @@ fn read_and_remove_block(arr: &mut [Counter_Block], key: u32, ret: &mut Counter_
 }
 
 #[inline]
-fn write_block_to_empty_slot(arr: &mut [Counter_Block], val: &Counter_Block) -> bool {
+fn write_block_to_empty_slot(arr: &mut [Counter_Block_15], val: &Counter_Block_15) -> bool {
   let mut rv = false;
 
   for item in arr {
@@ -410,7 +379,7 @@ const fn common_suffix_length(a: PositionType, b: PositionType) -> u32 {
 mod tests {
   use super::*;
 
-  fn positions(oram: &FastCircuitCounterORAM) -> Vec<PositionType> {
+  fn positions(oram: &FastCircuitCounterORAM15) -> Vec<PositionType> {
     vec![0; oram.max_blocks]
   }
 
@@ -419,7 +388,7 @@ mod tests {
   }
 
   fn read(
-    oram: &mut FastCircuitCounterORAM,
+    oram: &mut FastCircuitCounterORAM15,
     positions: &mut [PositionType],
     prefix: usize,
     suffix: usize,
@@ -433,7 +402,7 @@ mod tests {
   }
 
   fn read_and_incr(
-    oram: &mut FastCircuitCounterORAM,
+    oram: &mut FastCircuitCounterORAM15,
     positions: &mut [PositionType],
     prefix: usize,
     suffix: usize,
@@ -447,7 +416,7 @@ mod tests {
   }
 
   fn read_key(
-    oram: &mut FastCircuitCounterORAM,
+    oram: &mut FastCircuitCounterORAM15,
     positions: &mut [PositionType],
     key: usize,
   ) -> u64 {
@@ -460,7 +429,7 @@ mod tests {
   }
 
   fn read_key_and_incr(
-    oram: &mut FastCircuitCounterORAM,
+    oram: &mut FastCircuitCounterORAM15,
     positions: &mut [PositionType],
     key: usize,
   ) -> u64 {
@@ -474,17 +443,17 @@ mod tests {
 
   #[test]
   fn reads_start_at_zero() {
-    let mut oram = FastCircuitCounterORAM::new(1024);
+    let mut oram = FastCircuitCounterORAM15::new(1024);
     let mut positions = positions(&oram);
 
     assert_eq!(read(&mut oram, &mut positions, 0, 0), 0);
-    assert_eq!(read(&mut oram, &mut positions, 0, 31), 0);
+    assert_eq!(read(&mut oram, &mut positions, 0, 63), 0);
     assert_eq!(read(&mut oram, &mut positions, 1, 0), 0);
   }
 
   #[test]
   fn supports_less_than_one_counter_block() {
-    let mut oram = FastCircuitCounterORAM::new(8);
+    let mut oram = FastCircuitCounterORAM15::new(8);
     let mut positions = positions(&oram);
 
     assert_eq!(read_and_incr(&mut oram, &mut positions, 0, 7), 0);
@@ -493,7 +462,7 @@ mod tests {
 
   #[test]
   fn read_and_incr_returns_old_value() {
-    let mut oram = FastCircuitCounterORAM::new(1024);
+    let mut oram = FastCircuitCounterORAM15::new(1024);
     let mut positions = positions(&oram);
 
     assert_eq!(read_and_incr(&mut oram, &mut positions, 0, 5), 0);
@@ -504,7 +473,7 @@ mod tests {
 
   #[test]
   fn suffixes_share_prefix_but_not_counter_slot() {
-    let mut oram = FastCircuitCounterORAM::new(1024);
+    let mut oram = FastCircuitCounterORAM15::new(1024);
     let mut positions = positions(&oram);
 
     assert_eq!(read_and_incr(&mut oram, &mut positions, 2, 0), 0);
@@ -516,8 +485,8 @@ mod tests {
 
   #[test]
   fn counters_match_reference_after_mixed_ops() {
-    const N: usize = 2048;
-    let mut oram = FastCircuitCounterORAM::new(N);
+    const N: usize = 4096;
+    let mut oram = FastCircuitCounterORAM15::new(N);
     let mut positions = positions(&oram);
     let mut reference = [0u64; N];
 
