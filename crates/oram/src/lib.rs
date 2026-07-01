@@ -17,6 +17,8 @@ pub mod fast_circuit_oram_15;
 
 pub mod fast_circuit_oram_alt;
 
+pub mod fast_recursive_oram;
+
 pub mod prelude;
 
 pub mod recursive_oram;

@@ -9,6 +9,8 @@ use rostl_primitives::{
   cmov_body, cxchg_body, impl_cmov_for_pod,
   traits::{_Cmovbase, Cmov},
 };
+use sha2::{Digest as Sha2Digest, Sha256};
+use sha3::Sha3_256;
 
 use std::{hint::black_box, mem::size_of, time::Duration};
 
@@ -17,8 +19,9 @@ use rostl_oram::{
   prelude::PositionType, recursive_oram::RecursivePositionMap,
 };
 use rostl_oram::{
-  fast_circuit_oram::FastCircuitCounterORAM, fast_circuit_oram_15::FastCircuitCounterORAM15,
-  fast_circuit_oram_alt::FastCircuitCounterORAMAlt,
+  fast_buckets_15::Counter_Block_15, fast_circuit_oram::FastCircuitCounterORAM,
+  fast_circuit_oram_15::FastCircuitCounterORAM15, fast_circuit_oram_alt::FastCircuitCounterORAMAlt,
+  fast_recursive_oram::FastRecursiveORAM,
 };
 
 const BENCH_INTERNAL_NODE_FAN_OUT: usize = 64 / size_of::<PositionType>();
@@ -33,6 +36,68 @@ impl Default for BenchInternalNode {
   fn default() -> Self {
     Self([PositionType::default(); BENCH_INTERNAL_NODE_FAN_OUT])
   }
+}
+
+fn hash_input(step: u64) -> [u8; 32] {
+  let mut input = [0u8; 32];
+  input[..20].copy_from_slice(&[
+    0x1a, 0x33, 0x5c, 0x71, 0x89, 0xd2, 0xe0, 0x04, 0x99, 0x14, 0x27, 0x38, 0x41, 0xa6, 0xbb, 0xc9,
+    0xde, 0xef, 0x02, 0x10,
+  ]);
+  input[20..28].copy_from_slice(&step.to_le_bytes());
+  input[28..32].copy_from_slice(&(step as u32).wrapping_mul(37).to_le_bytes());
+  input
+}
+
+pub fn benchmark_hash_position<T: Measurement + 'static>(c: &mut Criterion<T>) {
+  const OPS_PER_ITER: usize = 1024;
+
+  let mut group = c.benchmark_group(format!(
+    "HashPosition32/{}",
+    std::any::type_name::<T>().split(':').next_back().unwrap()
+  ));
+  group.throughput(Throughput::Elements(OPS_PER_ITER as u64));
+
+  group.bench_function("blake3", |b| {
+    let mut step = 0u64;
+    b.iter(|| {
+      let mut acc = 0u8;
+      for _ in 0..OPS_PER_ITER {
+        let hash = blake3::hash(&hash_input(step));
+        acc ^= hash.as_bytes()[0];
+        step = step.wrapping_add(1);
+      }
+      black_box(acc);
+    });
+  });
+
+  group.bench_function("sha2_256", |b| {
+    let mut step = 0u64;
+    b.iter(|| {
+      let mut acc = 0u8;
+      for _ in 0..OPS_PER_ITER {
+        let hash = Sha256::digest(hash_input(step));
+        acc ^= hash[0];
+        step = step.wrapping_add(1);
+      }
+      black_box(acc);
+    });
+  });
+
+  group.bench_function("sha3_256", |b| {
+    let mut step = 0u64;
+    b.iter(|| {
+      let mut acc = 0u8;
+      for _ in 0..OPS_PER_ITER {
+        let hash = Sha3_256::digest(hash_input(step));
+        acc ^= hash[0];
+        step = step.wrapping_add(1);
+      }
+      black_box(acc);
+    });
+  });
+
+  group.finish();
 }
 
 pub fn benchmark_oram_initialization<T: Measurement + 'static>(c: &mut Criterion<T>) {
@@ -178,6 +243,57 @@ pub fn benchmark_fast_circuit_oram_bucket<T: Measurement + 'static>(c: &mut Crit
     b.iter(|| {
       black_box(Cacheline_Counter_Bucket::merge_blocks(black_box(blocks)));
     });
+  });
+
+  group.finish();
+}
+
+fn grown_counter_block_15() -> Counter_Block_15 {
+  let mut block = Counter_Block_15::default();
+  for index in 0..64 {
+    for _ in 0..64 {
+      let (_, incremented) = block.get_and_increment_counter(index);
+      debug_assert!(incremented);
+    }
+  }
+  block
+}
+
+pub fn benchmark_fast_counter_15_reset<T: Measurement + 'static>(c: &mut Criterion<T>) {
+  const RESET_OPS: u64 = 64;
+
+  let mut group = c.benchmark_group(format!(
+    "FastCounter15_Reset/{}",
+    std::any::type_name::<T>().split(':').next_back().unwrap()
+  ));
+  group.throughput(Throughput::Elements(RESET_OPS));
+
+  group.bench_function("block_reset_base_width", |b| {
+    b.iter_batched(
+      Counter_Block_15::default,
+      |mut block| {
+        let mut acc = 0u64;
+        for i in 0..RESET_OPS {
+          acc ^= block.get_and_reset_counter(black_box(i as usize));
+        }
+        black_box((acc, block));
+      },
+      BatchSize::SmallInput,
+    );
+  });
+
+  group.bench_function("block_reset_reclaim_width7", |b| {
+    b.iter_batched(
+      grown_counter_block_15,
+      |mut block| {
+        let mut acc = 0u64;
+        for i in 0..RESET_OPS {
+          acc ^= block.get_and_reset_counter(black_box(i as usize));
+        }
+        black_box((acc, block));
+      },
+      BatchSize::SmallInput,
+    );
   });
 
   group.finish();
@@ -666,7 +782,138 @@ pub fn benchmark_fast_counter_oram_large_n<T: Measurement + 'static>(c: &mut Cri
   group.finish();
 }
 
+fn recursive_bench_keys(size: usize) -> [usize; 16] {
+  core::array::from_fn(|i| bench_key(i, size))
+}
+
+fn setup_normal_recursive_oram(
+  size: usize,
+  keys: &[usize; 16],
+) -> (RecursivePositionMap, CircuitORAM<u64>) {
+  let mut pos_map = RecursivePositionMap::new(size);
+  let mut data_oram = CircuitORAM::<u64>::new(size);
+  let mut rng = rng();
+
+  for &key in keys {
+    let pos = bench_pos(&mut rng, data_oram.max_n);
+    let old_pos = pos_map.access_position(key, pos);
+    black_box(old_pos);
+    let inserted = data_oram.write_or_insert(0, pos, key, key as u64);
+    debug_assert!(!inserted);
+  }
+
+  (pos_map, data_oram)
+}
+
+fn setup_fast_recursive_oram(size: usize, keys: &[usize; 16]) -> FastRecursiveORAM<u64> {
+  let mut oram = FastRecursiveORAM::<u64>::new(size);
+  for &key in keys {
+    let inserted = oram.write_or_insert(key, key as u64);
+    debug_assert!(!inserted);
+  }
+  oram
+}
+
+pub fn benchmark_recursive_oram_compare<T: Measurement + 'static>(c: &mut Criterion<T>) {
+  const OPS_PER_ITER: usize = 1 << 16;
+
+  let mut group = c.benchmark_group(format!(
+    "RecursiveORAM_Compare/{}",
+    std::any::type_name::<T>().split(':').next_back().unwrap()
+  ));
+  group.sample_size(10);
+  group.warm_up_time(Duration::from_millis(250));
+  group.measurement_time(Duration::from_millis(750));
+  group.throughput(Throughput::Elements(OPS_PER_ITER as u64));
+
+  for &size in &[1 << 10, 1 << 15, 1 << 20, 1 << 25] {
+    let keys = recursive_bench_keys(size);
+
+    group.bench_function(BenchmarkId::new("NormalRecursiveORAM_Read", size), |b| {
+      let (mut pos_map, mut data_oram) = setup_normal_recursive_oram(size, &keys);
+      let mut rng = rng();
+      let mut step = 0usize;
+      b.iter(|| {
+        let mut acc = 0u64;
+        for _ in 0..OPS_PER_ITER {
+          let key = keys[step & (keys.len() - 1)];
+          let new_pos = bench_pos(&mut rng, data_oram.max_n);
+          let pos = pos_map.access_position(key, new_pos);
+          let mut value = 0u64;
+          let found = data_oram.read(pos, new_pos, key, &mut value);
+          debug_assert!(found);
+          acc ^= value;
+          step = step.wrapping_add(1);
+        }
+        black_box(acc);
+      });
+    });
+
+    group.bench_function(BenchmarkId::new("FastRecursiveORAM_Read", size), |b| {
+      let mut oram = setup_fast_recursive_oram(size, &keys);
+      let mut step = 0usize;
+      b.iter(|| {
+        let mut acc = 0u64;
+        for _ in 0..OPS_PER_ITER {
+          let key = keys[step & (keys.len() - 1)];
+          let mut value = 0u64;
+          let found = oram.read(key, &mut value);
+          debug_assert!(found);
+          acc ^= value;
+          step = step.wrapping_add(1);
+        }
+        black_box(acc);
+      });
+    });
+
+    group.bench_function(BenchmarkId::new("NormalRecursiveORAM_Update", size), |b| {
+      let (mut pos_map, mut data_oram) = setup_normal_recursive_oram(size, &keys);
+      let mut rng = rng();
+      let mut step = 0usize;
+      b.iter(|| {
+        let mut acc = 0u64;
+        for _ in 0..OPS_PER_ITER {
+          let key = keys[step & (keys.len() - 1)];
+          let new_pos = bench_pos(&mut rng, data_oram.max_n);
+          let pos = pos_map.access_position(key, new_pos);
+          let (found, old) = data_oram.update(pos, new_pos, key, |value| {
+            let old = *value;
+            *value = value.wrapping_add(1);
+            old
+          });
+          debug_assert!(found);
+          acc ^= old;
+          step = step.wrapping_add(1);
+        }
+        black_box(acc);
+      });
+    });
+
+    group.bench_function(BenchmarkId::new("FastRecursiveORAM_Update", size), |b| {
+      let mut oram = setup_fast_recursive_oram(size, &keys);
+      let mut step = 0usize;
+      b.iter(|| {
+        let mut acc = 0u64;
+        for _ in 0..OPS_PER_ITER {
+          let key = keys[step & (keys.len() - 1)];
+          let (found, old) = oram.update(key, |value| {
+            let old = *value;
+            *value = value.wrapping_add(1);
+            old
+          });
+          debug_assert!(found);
+          acc ^= old;
+          step = step.wrapping_add(1);
+        }
+        black_box(acc);
+      });
+    });
+  }
+
+  group.finish();
+}
+
 criterion_group!(name = benches_time;
     config = Criterion::default().warm_up_time(std::time::Duration::from_millis(500)).measurement_time(std::time::Duration::from_secs(3));
-    targets = benchmark_oram_initialization, benchmark_oram_ops, benchmark_fast_circuit_oram_bucket, benchmark_fast_counter_oram_ops, benchmark_fast_counter_oram_large_n);
+    targets = benchmark_oram_initialization, benchmark_oram_ops, benchmark_fast_circuit_oram_bucket, benchmark_fast_counter_15_reset, benchmark_fast_counter_oram_ops, benchmark_fast_counter_oram_large_n, benchmark_recursive_oram_compare, benchmark_hash_position);
 criterion_main!(benches_time);

@@ -180,6 +180,47 @@ impl Counter_Block_15 {
     self.get_and_increment_counter_if(index, true)
   }
 
+  /// Returns counter `index`'s old value and resets it to zero.
+  #[inline(always)]
+  pub fn get_and_reset_counter(&mut self, index: usize) -> u64 {
+    debug_assert!(index < COUNTER_15_BLOCK_COUNTERS);
+
+    let metadata = self.metadata_words();
+    let previous_rank = index.wrapping_sub(1);
+    let previous_delimiter =
+      select_usize(select_delimiter(metadata, previous_rank), usize::MAX, index == 0);
+    let delimiter = select_delimiter(metadata, index);
+    let chunks = delimiter.wrapping_sub(previous_delimiter).wrapping_sub(1);
+    let chunks_before = select_usize(previous_delimiter.wrapping_sub(previous_rank), 0, index == 0);
+    let width = COUNTER_15_BASE_BITS + chunks * COUNTER_15_CHUNK_BITS;
+    let start = index * COUNTER_15_BASE_BITS + chunks_before * COUNTER_15_CHUNK_BITS;
+    let counter = extract_counter_u64(self.counter_words(), start, width);
+
+    let metadata = delete_bits(
+      metadata,
+      previous_delimiter.wrapping_add(1),
+      chunks,
+      COUNTER_15_MAX_CHUNKS,
+      true,
+      METADATA_WORD_MASKS,
+    );
+    self.set_metadata_words(metadata);
+
+    let counters =
+      clear_bits(self.counter_words(), start, COUNTER_15_BASE_BITS, true, COUNTER_WORD_MASKS);
+    let counters = delete_bits(
+      counters,
+      start + COUNTER_15_BASE_BITS,
+      chunks * COUNTER_15_CHUNK_BITS,
+      COUNTER_15_MAX_COUNTER_BITS - COUNTER_15_BASE_BITS,
+      true,
+      COUNTER_WORD_MASKS,
+    );
+    self.set_counter_words(counters);
+
+    counter
+  }
+
   /// Reads or increments `selected_index` after the containing block has been selected.
   #[inline(always)]
   pub fn access_counter_oblivious(&mut self, selected_index: usize, increment: bool) -> u64 {
@@ -192,6 +233,13 @@ impl Counter_Block_15 {
     } else {
       self.get_counter(selected_index)
     }
+  }
+
+  /// Reads and resets `selected_index` after the containing block has been selected.
+  #[inline(always)]
+  pub fn access_counter_reset_oblivious(&mut self, selected_index: usize) -> u64 {
+    debug_assert!(selected_index < COUNTER_15_BLOCK_COUNTERS);
+    self.get_and_reset_counter(selected_index)
   }
 
   #[inline(always)]
@@ -465,6 +513,78 @@ const fn add_bit<const N: usize>(
 }
 
 #[inline(always)]
+const fn clear_bits<const N: usize>(
+  mut words: [u64; N],
+  start: usize,
+  width: usize,
+  enable: bool,
+  valid_masks: [u64; N],
+) -> [u64; N] {
+  let mut bit = 0;
+  while bit < COUNTER_15_MAX_COUNTER_BITS {
+    words = clear_bit(words, start + bit, enable & (bit < width), valid_masks);
+    bit += 1;
+  }
+  words
+}
+
+#[inline(always)]
+const fn clear_bit<const N: usize>(
+  words: [u64; N],
+  bit_index: usize,
+  enable: bool,
+  valid_masks: [u64; N],
+) -> [u64; N] {
+  let mut out = [0u64; N];
+  let mut i = 0;
+  while i < N {
+    let word_start = i * u64::BITS as usize;
+    let in_word = (bit_index >= word_start) & (bit_index < word_start + u64::BITS as usize);
+    let shift = bit_index.wrapping_sub(word_start) & 63;
+    let bit_mask = (1u64 << shift) & valid_masks[i] & mask_u64(enable & in_word);
+    out[i] = words[i] & !bit_mask;
+    i += 1;
+  }
+  out
+}
+
+#[inline(always)]
+const fn delete_bits<const N: usize>(
+  mut words: [u64; N],
+  bit_index: usize,
+  count: usize,
+  max_count: usize,
+  enable: bool,
+  valid_masks: [u64; N],
+) -> [u64; N] {
+  let mut i = 0;
+  while i < max_count {
+    words = delete_bit(words, bit_index, enable & (i < count), valid_masks);
+    i += 1;
+  }
+  words
+}
+
+#[inline(always)]
+const fn delete_bit<const N: usize>(
+  words: [u64; N],
+  bit_index: usize,
+  enable: bool,
+  valid_masks: [u64; N],
+) -> [u64; N] {
+  let mut out = [0u64; N];
+  let mut i = 0;
+  while i < N {
+    let keep_mask = low_mask_for_word(bit_index, i);
+    let shifted = shr_pair(words[i], word_or_zero_const(words, i + 1), 1);
+    let deleted = (words[i] & keep_mask) | (shifted & !keep_mask);
+    out[i] = select_u64(words[i], deleted & valid_masks[i], enable);
+    i += 1;
+  }
+  out
+}
+
+#[inline(always)]
 fn extract_region<const N: usize>(
   raw: [u64; RAW_WORDS],
   start: usize,
@@ -528,6 +648,17 @@ fn extract_bits<const N: usize>(words: [u64; N], start: usize, width: usize) -> 
 
 #[inline(always)]
 fn word_or_zero<const N: usize>(words: [u64; N], index: usize) -> u64 {
+  let mut out = 0;
+  let mut i = 0;
+  while i < N {
+    out = select_u64(out, words[i], i == index);
+    i += 1;
+  }
+  out
+}
+
+#[inline(always)]
+const fn word_or_zero_const<const N: usize>(words: [u64; N], index: usize) -> u64 {
   let mut out = 0;
   let mut i = 0;
   while i < N {
@@ -715,6 +846,44 @@ mod tests {
       let read_index = (step * 19 + 7) & (COUNTER_15_BLOCK_COUNTERS - 1);
       assert_eq!(block.get_counter(read_index), reference[read_index]);
     }
+  }
+
+  #[test]
+  fn reset_reclaims_allocated_chunks() {
+    let mut block = Counter_Block_15::default();
+
+    for value in 0..100 {
+      assert_eq!(block.get_and_increment_counter(7), (value, true));
+    }
+    assert_ne!(block.metadata_words(), [u64::MAX, 0, 0]);
+
+    assert_eq!(block.get_and_reset_counter(7), 100);
+    assert_eq!(block.get_counter(7), 0);
+    assert_eq!(block.metadata_words(), [u64::MAX, 0, 0]);
+  }
+
+  #[test]
+  fn reset_preserves_neighbor_counters() {
+    let mut block = Counter_Block_15::default();
+
+    for value in 0..96 {
+      assert_eq!(block.get_and_increment_counter(6), (value, true));
+    }
+    for value in 0..80 {
+      assert_eq!(block.get_and_increment_counter(7), (value, true));
+    }
+    for value in 0..72 {
+      assert_eq!(block.get_and_increment_counter(8), (value, true));
+    }
+
+    assert_eq!(block.get_and_reset_counter(7), 80);
+    assert_eq!(block.get_counter(6), 96);
+    assert_eq!(block.get_counter(7), 0);
+    assert_eq!(block.get_counter(8), 72);
+
+    assert_eq!(block.get_and_reset_counter(6), 96);
+    assert_eq!(block.get_and_reset_counter(8), 72);
+    assert_eq!(block.metadata_words(), [u64::MAX, 0, 0]);
   }
 
   #[test]

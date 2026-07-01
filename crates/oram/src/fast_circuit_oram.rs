@@ -411,11 +411,12 @@ mod tests {
   use super::*;
 
   fn positions(oram: &FastCircuitCounterORAM) -> Vec<PositionType> {
-    vec![0; oram.max_blocks]
+    let mut rng = rng();
+    (0..oram.max_blocks).map(|_| random_position(&mut rng, oram.max_blocks)).collect()
   }
 
-  fn next_pos(pos: PositionType, max_blocks: usize) -> PositionType {
-    (pos.wrapping_add(1)) & (max_blocks as PositionType - 1)
+  fn next_pos(_pos: PositionType, max_blocks: usize) -> PositionType {
+    random_position(&mut rng(), max_blocks)
   }
 
   fn read(

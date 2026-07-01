@@ -107,6 +107,47 @@ impl FastCircuitCounterORAM15 {
     self.read_and_incr(pos, new_pos, prefix, suffix)
   }
 
+  /// Returns the current value of a flat counter address, then resets it to zero.
+  #[inline]
+  pub fn read_key_and_reset(
+    &mut self,
+    pos: PositionType,
+    new_pos: PositionType,
+    key: usize,
+  ) -> u64 {
+    let (prefix, suffix) = self.address_parts(key);
+    self.access_reset(pos, new_pos, prefix, suffix)
+  }
+
+  /// Remaps the ORAM block with external position-map key `target_key`.
+  #[inline]
+  pub fn remap_position_map_key(
+    &mut self,
+    pos: PositionType,
+    new_pos: PositionType,
+    target_key: usize,
+  ) -> bool {
+    debug_assert!(target_key < self.max_blocks);
+    debug_assert!((pos as usize) < self.max_blocks);
+    debug_assert!((new_pos as usize) < self.max_blocks);
+
+    self.read_path_and_get_nodes(pos);
+
+    let mut block = Counter_Block_15::default();
+    let found = read_and_remove_block(&mut self.stash, target_key as u32, &mut block);
+    block.set_key_pos(target_key as u32, new_pos);
+    block.cmov_empty(!found);
+
+    let written = write_block_to_empty_slot(&mut self.stash[..S], &block);
+    debug_assert!(written);
+
+    self.evict_once_fast(pos);
+    self.write_back_path(pos);
+    self.perform_deterministic_evictions();
+
+    found
+  }
+
   /// Returns the external position-map index for counter `(prefix, suffix)`.
   #[inline]
   pub fn position_map_key(&self, prefix: usize, suffix: usize) -> usize {
@@ -152,6 +193,40 @@ impl FastCircuitCounterORAM15 {
     block.set_key_pos(target_key as u32, new_pos);
 
     let value = block.access_counter_oblivious(suffix, increment);
+
+    let written = write_block_to_empty_slot(&mut self.stash[..S], &block);
+    debug_assert!(written);
+    debug_assert!(found | !block.is_empty());
+
+    self.evict_once_fast(pos);
+    self.write_back_path(pos);
+    self.perform_deterministic_evictions();
+
+    value
+  }
+
+  fn access_reset(
+    &mut self,
+    pos: PositionType,
+    new_pos: PositionType,
+    prefix: usize,
+    suffix: usize,
+  ) -> u64 {
+    debug_assert!(suffix < COUNTER_15_BLOCK_COUNTERS);
+    debug_assert!(prefix * COUNTER_15_BLOCK_COUNTERS + suffix < self.max_n);
+    debug_assert!((pos as usize) < self.max_blocks);
+    debug_assert!((new_pos as usize) < self.max_blocks);
+
+    let target_key = self.shuffled_key(prefix, suffix);
+    debug_assert!(target_key < self.max_blocks);
+
+    self.read_path_and_get_nodes(pos);
+
+    let mut block = Counter_Block_15::default();
+    let found = read_and_remove_block(&mut self.stash, target_key as u32, &mut block);
+    block.set_key_pos(target_key as u32, new_pos);
+
+    let value = block.access_counter_reset_oblivious(suffix);
 
     let written = write_block_to_empty_slot(&mut self.stash[..S], &block);
     debug_assert!(written);
@@ -380,11 +455,12 @@ mod tests {
   use super::*;
 
   fn positions(oram: &FastCircuitCounterORAM15) -> Vec<PositionType> {
-    vec![0; oram.max_blocks]
+    let mut rng = rng();
+    (0..oram.max_blocks).map(|_| random_position(&mut rng, oram.max_blocks)).collect()
   }
 
-  fn next_pos(pos: PositionType, max_blocks: usize) -> PositionType {
-    (pos.wrapping_add(1)) & (max_blocks as PositionType - 1)
+  fn next_pos(_pos: PositionType, max_blocks: usize) -> PositionType {
+    random_position(&mut rng(), max_blocks)
   }
 
   fn read(
@@ -441,6 +517,19 @@ mod tests {
     value
   }
 
+  fn read_key_and_reset(
+    oram: &mut FastCircuitCounterORAM15,
+    positions: &mut [PositionType],
+    key: usize,
+  ) -> u64 {
+    let map_key = oram.position_map_key_for_key(key);
+    let pos = positions[map_key];
+    let new_pos = next_pos(pos, oram.max_blocks);
+    let value = oram.read_key_and_reset(pos, new_pos, key);
+    positions[map_key] = new_pos;
+    value
+  }
+
   #[test]
   fn reads_start_at_zero() {
     let mut oram = FastCircuitCounterORAM15::new(1024);
@@ -469,6 +558,18 @@ mod tests {
     assert_eq!(read(&mut oram, &mut positions, 0, 5), 1);
     assert_eq!(read_and_incr(&mut oram, &mut positions, 0, 5), 1);
     assert_eq!(read(&mut oram, &mut positions, 0, 5), 2);
+  }
+
+  #[test]
+  fn read_and_reset_returns_old_value() {
+    let mut oram = FastCircuitCounterORAM15::new(1024);
+    let mut positions = positions(&oram);
+
+    assert_eq!(read_key_and_incr(&mut oram, &mut positions, 77), 0);
+    assert_eq!(read_key_and_incr(&mut oram, &mut positions, 77), 1);
+    assert_eq!(read_key_and_reset(&mut oram, &mut positions, 77), 2);
+    assert_eq!(read_key(&mut oram, &mut positions, 77), 0);
+    assert_eq!(read_key_and_incr(&mut oram, &mut positions, 77), 0);
   }
 
   #[test]
