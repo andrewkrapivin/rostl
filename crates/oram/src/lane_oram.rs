@@ -13,8 +13,9 @@ use bytemuck::{Pod, Zeroable};
 use core::arch::x86_64::__m512i;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 use core::arch::x86_64::{
-  _mm512_cmpeq_epi32_mask, _mm512_cmpeq_epi64_mask, _mm512_load_si512, _mm512_mask_mov_epi32,
-  _mm512_mask_mov_epi64, _mm512_permutexvar_epi32, _mm512_permutexvar_epi64, _mm512_store_si512,
+  __mmask16, _mm512_cmpeq_epi32_mask, _mm512_cmpeq_epi64_mask, _mm512_load_si512,
+  _mm512_mask_mov_epi32, _mm512_mask_mov_epi64, _mm512_permutexvar_epi32, _mm512_permutexvar_epi64,
+  _mm512_store_si512,
 };
 use rostl_primitives::{
   cmov_body, cxchg_body, impl_cmov_for_pod,
@@ -24,13 +25,49 @@ use rostl_primitives::{
 use crate::{prelude::PositionType, wide_heap_tree::WideHeapTree};
 
 /// Default number of lanes (blocks per bucket).
-pub const DEFAULT_Z: usize = 2;
+pub const DEFAULT_Z: usize = 3;
+
+/// Default number of blocks reserved for the stash.
+pub const DEFAULT_S: usize = 20;
+
+/// Default branching factor of the wide tree.
+pub const DEFAULT_B: usize = 2;
 
 /// Invalid position for a [`Block64`].
 pub const DUMMY_POS64: u64 = u64::MAX;
 
+/// Key reserved for dummy [`Block32`] values.
+///
+/// This is a temporary invariant. Supporting the full 32-bit key space will
+/// require key matching to also reject blocks whose position is dummy.
+pub const DUMMY_KEY32: u32 = u32::MAX;
+
+/// Key reserved for dummy [`Block64`] values.
+///
+/// This is a temporary invariant. Supporting the full 64-bit key space will
+/// require key matching to also reject blocks whose position is dummy.
+pub const DUMMY_KEY64: u64 = u64::MAX;
+
+/// Position type used by the active lane ORAM configuration.
+pub type PosType = PositionType;
+/// Key type used by the active lane ORAM configuration.
+pub type KeyType = u32;
+/// Cache-line block used by the active lane ORAM configuration.
+pub type BlockType = Block32;
+/// All-zero or all-one AVX-512 lane-movement mask.
+pub type LaneMask = u16;
+/// Dummy position used by the active lane ORAM configuration.
+pub const DUMMY_POS: PosType = PosType::MAX;
+/// Dummy key used by the active lane ORAM configuration.
+pub const DUMMY_KEY: KeyType = DUMMY_KEY32;
+/// Initial payload passed to `update` when a key is absent.
+pub const EMPTY_BLOCK_DATA: [u8; 56] = [0; 56];
+
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 const BLOCK32_KEY_INDICES: __m512i = unsafe { std::mem::transmute([1u32; 16]) };
+
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+const BLOCK32_POS_INDICES: __m512i = unsafe { std::mem::transmute([0u32; 16]) };
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 const BLOCK32_DUMMY_POS: __m512i = unsafe { std::mem::transmute([u32::MAX; 16]) };
@@ -60,7 +97,7 @@ impl_cmov_for_pod!(Block32);
 
 impl Default for Block32 {
   fn default() -> Self {
-    Self { pos: PositionType::MAX, key: 0, data: [0; 56] }
+    Self { pos: PositionType::MAX, key: DUMMY_KEY32, data: [u8::MAX; 56] }
   }
 }
 
@@ -118,7 +155,7 @@ impl Block32 {
 
       *ret = _mm512_mask_mov_epi32(*ret, matches, block);
 
-      let block_with_dummy_pos = _mm512_mask_mov_epi32(block, matches & 1, BLOCK32_DUMMY_POS);
+      let block_with_dummy_pos = _mm512_mask_mov_epi32(block, matches, BLOCK32_DUMMY_POS);
       self.store_avx512(block_with_dummy_pos);
     }
   }
@@ -188,7 +225,7 @@ impl_cmov_for_pod!(Block64);
 
 impl Default for Block64 {
   fn default() -> Self {
-    Self { pos: DUMMY_POS64, key: 0, data: [0; 48] }
+    Self { pos: DUMMY_POS64, key: DUMMY_KEY64, data: [u8::MAX; 48] }
   }
 }
 
@@ -246,7 +283,7 @@ impl Block64 {
 
       *ret = _mm512_mask_mov_epi64(*ret, matches, block);
 
-      let block_with_dummy_pos = _mm512_mask_mov_epi64(block, matches & 1, BLOCK64_DUMMY_POS);
+      let block_with_dummy_pos = _mm512_mask_mov_epi64(block, matches, BLOCK64_DUMMY_POS);
       self.store_avx512(block_with_dummy_pos);
     }
   }
@@ -297,6 +334,12 @@ pub fn read_and_remove_path64(_block: &Block64, _stash_and_path: &mut [Block64])
   todo!("implement the non-AVX-512 read_and_remove_path64")
 }
 
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+#[inline]
+fn read_and_remove_configured(block: &BlockType, stash_and_path: &mut [BlockType]) -> BlockType {
+  read_and_remove_path32(block, stash_and_path)
+}
+
 const _: () = assert!(size_of::<Block32>() == 64);
 const _: () = assert!(align_of::<Block32>() == 64);
 const _: () = assert!(offset_of!(Block32, pos) == 0);
@@ -311,11 +354,11 @@ const _: () = assert!(offset_of!(Block64, data) == 16);
 /// A bucket in the lane ORAM tree.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-pub struct Bucket<const Z: usize = DEFAULT_Z>(pub [Block32; Z]);
+pub struct Bucket<const Z: usize = DEFAULT_Z>(pub [BlockType; Z]);
 
 impl<const Z: usize> Default for Bucket<Z> {
   fn default() -> Self {
-    Self([Block32::default(); Z])
+    Self([BlockType::default(); Z])
   }
 }
 
@@ -323,17 +366,19 @@ impl<const Z: usize> WideHeapTree<Bucket<Z>> {
   /// Reads every bucket on `path` into `out`, ordered from root to leaf.
   #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
   #[inline]
-  pub fn read_path(&self, path: PositionType, out: &mut [Block32]) {
-    debug_assert!((path as usize) < self.branching_factor.pow((self.height - 1) as u32));
+  pub fn read_path(&self, path: PosType, out: &mut [BlockType]) {
+    debug_assert!((path as usize) < self.path_count());
     debug_assert!(out.len() == self.height * Z);
 
+    let mut out_index = 0;
     for depth in 0..self.height {
       let index = self.get_index(depth, path);
       let bucket = &self.tree[index];
 
       for slot in 0..Z {
         let block = bucket.0[slot].load_avx512();
-        out[depth * Z + slot].store_avx512(block);
+        out[out_index].store_avx512(block);
+        out_index += 1;
       }
     }
   }
@@ -341,31 +386,35 @@ impl<const Z: usize> WideHeapTree<Bucket<Z>> {
   /// Reads every bucket on `path` without AVX-512 support.
   #[cfg(not(all(target_arch = "x86_64", target_feature = "avx512f")))]
   #[inline]
-  pub fn read_path(&self, path: PositionType, out: &mut [Block32]) {
-    debug_assert!((path as usize) < self.branching_factor.pow((self.height - 1) as u32));
+  pub fn read_path(&self, path: PosType, out: &mut [BlockType]) {
+    debug_assert!((path as usize) < self.path_count());
     debug_assert!(out.len() == self.height * Z);
 
+    let mut out_index = 0;
     for depth in 0..self.height {
       let index = self.get_index(depth, path);
       let bucket = &self.tree[index];
-      out[depth * Z..(depth + 1) * Z].copy_from_slice(&bucket.0);
+      out[out_index..out_index + Z].copy_from_slice(&bucket.0);
+      out_index += Z;
     }
   }
 
   /// Writes root-to-leaf block data from `input` to every bucket on `path`.
   #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
   #[inline]
-  pub fn write_path(&mut self, path: PositionType, input: &[Block32]) {
-    debug_assert!((path as usize) < self.branching_factor.pow((self.height - 1) as u32));
+  pub fn write_path(&mut self, path: PosType, input: &[BlockType]) {
+    debug_assert!((path as usize) < self.path_count());
     debug_assert!(input.len() == self.height * Z);
 
+    let mut input_index = 0;
     for depth in 0..self.height {
       let index = self.get_index(depth, path);
       let bucket = &mut self.tree[index];
 
       for slot in 0..Z {
-        let block = input[depth * Z + slot].load_avx512();
+        let block = input[input_index].load_avx512();
         bucket.0[slot].store_avx512(block);
+        input_index += 1;
       }
     }
   }
@@ -373,35 +422,271 @@ impl<const Z: usize> WideHeapTree<Bucket<Z>> {
   /// Writes root-to-leaf block data without AVX-512 support.
   #[cfg(not(all(target_arch = "x86_64", target_feature = "avx512f")))]
   #[inline]
-  pub fn write_path(&mut self, path: PositionType, input: &[Block32]) {
-    debug_assert!((path as usize) < self.branching_factor.pow((self.height - 1) as u32));
+  pub fn write_path(&mut self, path: PosType, input: &[BlockType]) {
+    debug_assert!((path as usize) < self.path_count());
     debug_assert!(input.len() == self.height * Z);
 
+    let mut input_index = 0;
     for depth in 0..self.height {
       let index = self.get_index(depth, path);
       let bucket = &mut self.tree[index];
-      bucket.0.copy_from_slice(&input[depth * Z..(depth + 1) * Z]);
+      bucket.0.copy_from_slice(&input[input_index..input_index + Z]);
+      input_index += Z;
     }
   }
 }
 
-/// Skeleton for the 32-bit lane ORAM.
+/// Partial 32-bit lane ORAM.
 #[derive(Debug)]
-pub struct LaneORAM<const Z: usize = DEFAULT_Z> {
+pub struct LaneORAM<
+  const Z: usize = DEFAULT_Z,
+  const S: usize = DEFAULT_S,
+  const B: usize = DEFAULT_B,
+> {
+  /// Logical capacity, rounded up to a power of `B`.
+  pub max_n: usize,
+  /// Height of the wide tree; a root-only tree has height 1.
+  pub h: usize,
   /// Wide tree holding lane ORAM buckets.
   pub tree: WideHeapTree<Bucket<Z>>,
+  /// Combined `[stash | loaded path]` buffer.
+  ///
+  /// The first `S` blocks are the stash. The remaining `tree.height * Z`
+  /// blocks are scratch space for one loaded path.
+  pub stash_and_path: Vec<BlockType>,
+  /// Preallocated bucket-major masks used by lane eviction.
+  pub lane_masks: Vec<LaneMask>,
 }
 
-impl<const Z: usize> LaneORAM<Z> {
-  /// Creates the tree backing a lane ORAM.
-  pub fn new(height: usize, branching_factor: usize) -> Self {
-    Self { tree: WideHeapTree::new(height, branching_factor) }
+impl<const Z: usize, const S: usize, const B: usize> LaneORAM<Z, S, B> {
+  /// Creates an empty lane ORAM for at least `max_n` logical blocks.
+  pub fn new(max_n: usize) -> Self {
+    debug_assert!(max_n > 0);
+    debug_assert!(Z > 0);
+    debug_assert!(B >= 2);
+    debug_assert!(B.is_power_of_two());
+
+    let mut rounded_max_n = 1usize;
+    let mut height = 1usize;
+    while rounded_max_n < max_n {
+      rounded_max_n *= B;
+      height += 1;
+    }
+
+    let tree = WideHeapTree::new(height, B);
+    let stash_and_path = vec![BlockType::default(); S + height * Z];
+    let lane_masks = vec![0; height * Z];
+    Self { max_n: rounded_max_n, h: height, tree, stash_and_path, lane_masks }
+  }
+
+  /// Moves the first non-dummy stash block into each free root lane.
+  ///
+  /// The path must already be loaded into `stash_and_path[S..]`. Every lane
+  /// scans the entire stash, even after a block has been moved.
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  pub fn move_from_stash_to_free_lanes(&mut self) {
+    let mut root_index = S;
+
+    // SAFETY: This method is only compiled when AVX-512F is enabled.
+    unsafe {
+      for _ in 0..Z {
+        let mut root_register = self.stash_and_path[root_index].load_avx512();
+        let root_pos = _mm512_permutexvar_epi32(BLOCK32_POS_INDICES, root_register);
+        let root_empty_mask = _mm512_cmpeq_epi32_mask(root_pos, BLOCK32_DUMMY_POS);
+        let mut moved_mask: __mmask16 = !root_empty_mask;
+
+        for stash_index in 0..S {
+          let stash_register = self.stash_and_path[stash_index].load_avx512();
+          let stash_pos = _mm512_permutexvar_epi32(BLOCK32_POS_INDICES, stash_register);
+          let stash_empty_mask = _mm512_cmpeq_epi32_mask(stash_pos, BLOCK32_DUMMY_POS);
+          let stash_non_dummy_mask = !stash_empty_mask;
+          let move_mask = stash_non_dummy_mask & !moved_mask;
+
+          root_register = _mm512_mask_mov_epi32(root_register, move_mask, stash_register);
+          let emptied_stash = _mm512_mask_mov_epi32(stash_register, move_mask, BLOCK32_DUMMY_POS);
+          self.stash_and_path[stash_index].store_avx512(emptied_stash);
+          moved_mask |= stash_non_dummy_mask;
+        }
+
+        self.stash_and_path[root_index].store_avx512(root_register);
+        root_index += 1;
+      }
+    }
+  }
+
+  /// TODO: Non-AVX-512 stash-to-root-lanes fallback.
+  #[cfg(not(all(target_arch = "x86_64", target_feature = "avx512f")))]
+  pub fn move_from_stash_to_free_lanes(&mut self) {
+    todo!("implement the non-AVX-512 stash-to-root-lanes move")
+  }
+
+  /// Moves blocks down each lane according to precomputed masks.
+  ///
+  /// The path must already be loaded into `stash_and_path[S..]`. `masks` uses
+  /// the same bucket-major layout as the path: `[level * Z + lane]`. Each mask
+  /// must be either all zeroes or all ones. One held register per lane starts
+  /// as a dummy block.
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  pub fn move_down_lane(&mut self) {
+    debug_assert!(self.lane_masks.len() == self.h * Z);
+    let mut held = [BLOCK32_DUMMY_POS; Z];
+    let mut path_index = 0;
+    let mut block_index = S;
+
+    // SAFETY: This method is only compiled when AVX-512F is enabled.
+    unsafe {
+      for _ in 0..self.h {
+        for lane in 0..Z {
+          let mask = self.lane_masks[path_index];
+          debug_assert!((mask == 0) | (mask == LaneMask::MAX));
+
+          let block = self.stash_and_path[block_index].load_avx512();
+          let next_held = _mm512_mask_mov_epi32(held[lane], mask, block);
+          let next_block = _mm512_mask_mov_epi32(block, mask, held[lane]);
+          held[lane] = next_held;
+          self.stash_and_path[block_index].store_avx512(next_block);
+          path_index += 1;
+          block_index += 1;
+        }
+      }
+
+      for lane in 0..Z {
+        let held_pos = _mm512_permutexvar_epi32(BLOCK32_POS_INDICES, held[lane]);
+        let held_empty_mask = _mm512_cmpeq_epi32_mask(held_pos, BLOCK32_DUMMY_POS);
+        debug_assert!(held_empty_mask == LaneMask::MAX);
+      }
+    }
+  }
+
+  /// TODO: Non-AVX-512 lane movement fallback.
+  #[cfg(not(all(target_arch = "x86_64", target_feature = "avx512f")))]
+  pub fn move_down_lane(&mut self) {
+    todo!("implement the non-AVX-512 lane movement")
+  }
+
+  /// Calculates the masked swaps used to evict blocks down each lane.
+  ///
+  /// The path must already be loaded into `stash_and_path[S..]`. Masks use the
+  /// same bucket-major layout as the path. Levels are processed from leaf to
+  /// root, while all lanes at one level are processed contiguously.
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  pub fn calculate_masks(&mut self, path: PosType) {
+    debug_assert!((path as usize) < self.max_n);
+    debug_assert!(self.lane_masks.len() == self.h * Z);
+
+    let bits_per_digit = B.trailing_zeros();
+    let position_bits = ((self.h - 1) as u32) * bits_per_digit;
+    debug_assert!(position_bits <= PosType::BITS);
+    let unused_high_bits = PosType::BITS - position_bits;
+    let mut target_bits = [u32::MAX; Z];
+    let mut level_start = self.h * Z;
+
+    for level in (0..self.h).rev() {
+      level_start -= Z;
+      let mut path_index = level_start;
+      let mut block_index = S + level_start;
+
+      for lane in 0..Z {
+        let block = &self.stash_and_path[block_index];
+        let pos = block.pos;
+        let is_empty = pos == DUMMY_POS;
+
+        let differing_bits = (pos ^ path).wrapping_shl(unused_high_bits);
+        let matching_prefix_bits = differing_bits.leading_zeros();
+        let can_reach_target = matching_prefix_bits >= target_bits[lane];
+        let set_mask = is_empty | ((!is_empty) & can_reach_target);
+        let current_target_bits = (level as u32) * bits_per_digit;
+        target_bits[lane].cmov(&current_target_bits, set_mask);
+        self.lane_masks[path_index] = 0u16.wrapping_sub(set_mask as u16);
+        path_index += 1;
+        block_index += 1;
+      }
+    }
+  }
+
+  /// TODO: Non-AVX-512 mask calculation fallback.
+  #[cfg(not(all(target_arch = "x86_64", target_feature = "avx512f")))]
+  pub fn calculate_masks(&mut self, _path: PosType) {
+    todo!("implement the non-AVX-512 lane mask calculation")
+  }
+
+  /// Updates a block and assigns it `new_pos`, inserting a zeroed payload when absent.
+  ///
+  /// The closure may update the entire cache-line block, but changes to its
+  /// position and key are discarded; `new_pos` and `key` always become the
+  /// stored metadata.
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  pub fn update<T, F>(
+    &mut self,
+    pos: PosType,
+    new_pos: PosType,
+    key: KeyType,
+    update_func: F,
+  ) -> (bool, T)
+  where
+    F: FnOnce(&mut BlockType) -> T,
+  {
+    debug_assert!((pos as usize) < self.max_n);
+    debug_assert!((new_pos as usize) < self.max_n);
+    debug_assert!(key != DUMMY_KEY);
+
+    self.tree.read_path(pos, &mut self.stash_and_path[S..]);
+
+    let lookup = BlockType { pos: DUMMY_POS, key, data: EMPTY_BLOCK_DATA };
+    let mut block = read_and_remove_configured(&lookup, &mut self.stash_and_path);
+    let found = !block.is_empty();
+    let result = update_func(&mut block);
+    block.pos = new_pos;
+    block.key = key;
+
+    let block_register = block.load_avx512();
+    let mut previous_empty_mask: __mmask16 = 0;
+
+    // SAFETY: This method is only compiled when AVX-512F is enabled.
+    unsafe {
+      for index in 0..S {
+        let candidate = &mut self.stash_and_path[index];
+        let candidate_register = candidate.load_avx512();
+        let candidate_pos = _mm512_permutexvar_epi32(BLOCK32_POS_INDICES, candidate_register);
+        let current_empty_mask = _mm512_cmpeq_epi32_mask(candidate_pos, BLOCK32_DUMMY_POS);
+        let write_mask = current_empty_mask & !previous_empty_mask;
+        let updated = _mm512_mask_mov_epi32(candidate_register, write_mask, block_register);
+        candidate.store_avx512(updated);
+        previous_empty_mask |= current_empty_mask;
+      }
+    }
+
+    debug_assert!(previous_empty_mask != 0);
+
+    self.move_from_stash_to_free_lanes();
+    self.calculate_masks(pos);
+    self.move_down_lane();
+    self.tree.write_path(pos, &self.stash_and_path[S..]);
+    (found, result)
+  }
+
+  /// TODO: Non-AVX-512 update fallback.
+  #[cfg(not(all(target_arch = "x86_64", target_feature = "avx512f")))]
+  pub fn update<T, F>(
+    &mut self,
+    _pos: PosType,
+    _new_pos: PosType,
+    _key: KeyType,
+    _update_func: F,
+  ) -> (bool, T)
+  where
+    F: FnOnce(&mut BlockType) -> T,
+  {
+    todo!("implement the non-AVX-512 update")
   }
 }
 
 #[cfg(test)]
 mod tests {
   use std::mem::{align_of, size_of};
+
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  use rand::{rngs::StdRng, Rng, SeedableRng};
 
   use super::{Block32, Block64, LaneORAM};
 
@@ -414,9 +699,17 @@ mod tests {
   }
 
   #[test]
+  fn default_blocks_set_every_simd_lane_to_dummy() {
+    let block32 = Block32::default();
+    let block64 = Block64::default();
+    assert_eq!(bytemuck::bytes_of(&block32), &[u8::MAX; 64]);
+    assert_eq!(bytemuck::bytes_of(&block64), &[u8::MAX; 64]);
+  }
+
+  #[test]
   fn reads_and_writes_a_wide_tree_path() {
     const Z: usize = 3;
-    let mut oram = LaneORAM::<Z>::new(3, 3);
+    let mut oram = LaneORAM::<Z, 5, 4>::new(16);
     let mut input = [Block32::default(); 3 * Z];
 
     for index in 0..input.len() {
@@ -455,6 +748,7 @@ mod tests {
     assert_eq!(result.data[0], 42);
     assert_eq!(requested.pos, u32::MAX);
     assert!(stash_and_path[2].is_empty());
+    assert_eq!(stash_and_path[2].key, super::DUMMY_KEY32);
   }
 
   #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
@@ -475,5 +769,163 @@ mod tests {
     assert_eq!(result.data[0], 42);
     assert_eq!(requested.pos, super::DUMMY_POS64);
     assert!(stash_and_path[2].is_empty());
+    assert_eq!(stash_and_path[2].key, super::DUMMY_KEY64);
+  }
+
+  #[test]
+  fn lane_oram_allocates_stash_and_path() {
+    let oram = LaneORAM::<3, 5, 4>::new(10);
+    assert_eq!(oram.max_n, 16);
+    assert_eq!(oram.h, 3);
+    assert_eq!(oram.tree.height, 3);
+    assert_eq!(oram.tree.branching_factor, 4);
+    assert_eq!(oram.stash_and_path.len(), 5 + 3 * 3);
+    assert_eq!(oram.lane_masks.len(), 3 * 3);
+  }
+
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  #[test]
+  fn update_inserts_then_updates_block32() {
+    let mut oram = LaneORAM::<2, 4, 4>::new(16);
+
+    let (found, old) = oram.update(0, 3, 7, |block| {
+      let old = block.data[0];
+      block.data[0] = 41;
+      old
+    });
+    assert!(!found);
+    assert_eq!(old, 0);
+
+    let (found, old) = oram.update(3, 5, 7, |block| {
+      let old = block.data[0];
+      block.data[0] = 42;
+      old
+    });
+    assert!(found);
+    assert_eq!(old, 41);
+
+    let (found, old) = oram.update(5, 6, 7, |block| block.data[0]);
+    assert!(found);
+    assert_eq!(old, 42);
+  }
+
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  #[test]
+  fn moves_first_stash_block_only_into_free_root_lane() {
+    const Z: usize = 2;
+    const S: usize = 4;
+    let mut oram = LaneORAM::<Z, S, 4>::new(16);
+
+    oram.stash_and_path[0].pos = 3;
+    oram.stash_and_path[0].key = 10;
+    oram.stash_and_path[1].pos = 7;
+    oram.stash_and_path[1].key = 11;
+
+    let root_lane_1 = S + 1;
+    oram.stash_and_path[root_lane_1].pos = 12;
+    oram.stash_and_path[root_lane_1].key = 20;
+
+    oram.move_from_stash_to_free_lanes();
+
+    let root_lane_0 = S;
+    assert_eq!(oram.stash_and_path[root_lane_0].pos, 3);
+    assert_eq!(oram.stash_and_path[root_lane_0].key, 10);
+    assert!(oram.stash_and_path[0].is_empty());
+
+    assert_eq!(oram.stash_and_path[root_lane_1].pos, 12);
+    assert_eq!(oram.stash_and_path[root_lane_1].key, 20);
+    assert_eq!(oram.stash_and_path[1].pos, 7);
+    assert_eq!(oram.stash_and_path[1].key, 11);
+  }
+
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  #[test]
+  fn moves_down_all_lanes_in_level_major_order() {
+    const Z: usize = 2;
+    const S: usize = 2;
+    let mut oram = LaneORAM::<Z, S, 4>::new(16);
+
+    oram.stash_and_path[S].pos = 1;
+    oram.stash_and_path[S].key = 10;
+    oram.stash_and_path[S + Z].pos = 2;
+    oram.stash_and_path[S + Z].key = 11;
+
+    oram.stash_and_path[S + 1].pos = 3;
+    oram.stash_and_path[S + 1].key = 20;
+
+    let masks = [u16::MAX, 0, u16::MAX, 0, u16::MAX, 0];
+    oram.lane_masks.copy_from_slice(&masks);
+    oram.move_down_lane();
+
+    assert!(oram.stash_and_path[S].is_empty());
+    assert_eq!(oram.stash_and_path[S + Z].key, 10);
+    assert_eq!(oram.stash_and_path[S + 2 * Z].key, 11);
+
+    assert_eq!(oram.stash_and_path[S + 1].key, 20);
+    assert!(oram.stash_and_path[S + Z + 1].is_empty());
+    assert!(oram.stash_and_path[S + 2 * Z + 1].is_empty());
+  }
+
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  #[test]
+  fn calculates_lane_masks_from_leaf_to_root() {
+    const Z: usize = 2;
+    const S: usize = 2;
+    let mut oram = LaneORAM::<Z, S, 4>::new(16);
+
+    oram.stash_and_path[S].pos = 5;
+    oram.stash_and_path[S + Z].pos = 5;
+
+    oram.stash_and_path[S + 1].pos = 0;
+    oram.stash_and_path[S + Z + 1].pos = 0;
+    oram.stash_and_path[S + 2 * Z + 1].pos = 0;
+
+    oram.calculate_masks(5);
+
+    assert_eq!(oram.lane_masks, [u16::MAX, 0, u16::MAX, 0, u16::MAX, 0]);
+  }
+
+  #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+  #[test]
+  fn randomized_updates_round_trip_cacheline_payloads() {
+    const N: usize = 16;
+    let mut oram = LaneORAM::<4, 20, 4>::new(N);
+    let mut positions = [0u32; N];
+    let mut values = [[u8::MAX; 56]; N];
+    let mut rng = StdRng::seed_from_u64(1);
+
+    for key in 1..N {
+      let new_pos = rng.random_range(0..oram.max_n) as u32;
+      let mut new_value = [0u8; 56];
+      rng.fill(&mut new_value[..]);
+
+      oram.update(positions[key], new_pos, key as u32, |block| {
+        let old = block.data;
+        block.data = new_value;
+        old
+      });
+
+      positions[key] = new_pos;
+      values[key] = new_value;
+    }
+
+    for round in 0..50 {
+      for key in 1..N {
+        let new_pos = rng.random_range(0..oram.max_n) as u32;
+        let mut new_value = [0u8; 56];
+        rng.fill(&mut new_value[..]);
+
+        let (found, old) = oram.update(positions[key], new_pos, key as u32, |block| {
+          let old = block.data;
+          block.data = new_value;
+          old
+        });
+
+        assert!(found, "missing key {key} in round {round} at position {}", positions[key]);
+        assert_eq!(old, values[key]);
+        positions[key] = new_pos;
+        values[key] = new_value;
+      }
+    }
   }
 }
