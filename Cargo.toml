@@ -154,6 +154,7 @@ rostl-storage = { path = "crates/storage", version = "0.1.0-alpha9" }
 ahash = { version = "0.8.11" }
 assume = { version = "0.5.0"}
 bytemuck = { version = "1.23.2", features = ["derive"] }
+getrandom = "0.3.4"
 kanal = { version = "0.1.1" }
 libc = "0.2.176"
 tracing = { version = "0.1.41", features = ["log"] }

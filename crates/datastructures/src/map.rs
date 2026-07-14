@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use rand::{rng, Rng};
 use rostl_primitives::{
   cmov_body, cxchg_body, impl_cmov_for_generic_pod,
-  traits::{Cmov, _Cmovbase},
+  traits::{_Cmovbase, Cmov},
 };
 
 use seq_macro::seq;

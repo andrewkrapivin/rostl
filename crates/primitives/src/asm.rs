@@ -1,6 +1,6 @@
 //! Assembly implementations of the `Cmov` trait.
 //!
-use crate::traits::{Cmov, _Cmovbase};
+use crate::traits::{_Cmovbase, Cmov};
 
 // UNDONE(git-20): Once rust generics support either specialization, negative trait bounds, or finalizations this can be turned into a generic.
 // Until then, we have this ugly macro.

@@ -1,0 +1,14 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,0,43314,0.04130744934082031,4.597454211,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,1,3942,0.00375938415527344,8.055287939,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,2,280,0.00026702880859375,11.870716983,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,3,8,0.00000762939453125,17.000000000,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,4,2,0.00000190734863281,19.000000000,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,5,0,0.00000000000000000,inf,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,0,1048576,1.00000000000000000,-0.000000000,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,1,43313,0.04130649566650391,4.597487519,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,2,3942,0.00375938415527344,8.055287939,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,3,280,0.00026702880859375,11.870716983,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,4,8,0.00000762939453125,17.000000000,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,5,2,0.00000190734863281,19.000000000,fixed,1,access-plus-radix-deterministic
+4,4,1,1048576,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,6,0,0.00000000000000000,inf,fixed,1,access-plus-radix-deterministic

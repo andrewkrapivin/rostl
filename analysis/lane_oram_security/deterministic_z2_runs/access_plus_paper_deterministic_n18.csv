@@ -1,0 +1,12 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,0,2574,0.00245475769042969,8.670203662,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,1,261,0.00024890899658203,11.972094003,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,2,21,0.00002002716064453,15.607682577,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,3,1,0.00000095367431641,20.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,4,0,0.00000000000000000,inf,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,0,1048576,1.00000000000000000,-0.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,1,2574,0.00245475769042969,8.670203662,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,2,261,0.00024890899658203,11.972094003,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,3,21,0.00002002716064453,15.607682577,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,4,1,0.00000095367431641,20.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,262144,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,5,0,0.00000000000000000,inf,fixed,1,access-plus-paper-deterministic

@@ -1,0 +1,16 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,0,1644192,0.39200592041015625,1.351052652,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,1,24684,0.00588512420654297,7.408711421,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,2,1872,0.00044631958007812,11.129635280,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,3,151,0.00003600120544434,14.761595261,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,4,12,0.00000286102294922,18.415037499,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,5,2,0.00000047683715820,21.000000000,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,6,0,0.00000000000000000,inf,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,0,4194304,1.00000000000000000,-0.000000000,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,1,1644192,0.39200592041015625,1.351052652,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,2,24684,0.00588512420654297,7.408711421,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,3,1872,0.00044631958007812,11.129635280,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,4,151,0.00003600120544434,14.761595261,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,5,12,0.00000286102294922,18.415037499,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,6,2,0.00000047683715820,21.000000000,fixed,1,access-plus-two-deterministic
+4,2,2,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,7,0,0.00000000000000000,inf,fixed,1,access-plus-two-deterministic

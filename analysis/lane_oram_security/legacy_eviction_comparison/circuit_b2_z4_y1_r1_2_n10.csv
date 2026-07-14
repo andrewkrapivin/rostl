@@ -1,0 +1,16 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule,deterministic_numerator,deterministic_denominator
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,0,1896522,0.45216608047485352,1.145075323,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,1,339802,0.08101511001586914,3.625665182,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,2,35469,0.00845646858215332,6.885728964,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,3,400,0.00009536743164062,13.356143810,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,4,52,0.00001239776611328,16.299560282,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,5,7,0.00000166893005371,19.192645078,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,6,0,0.00000000000000000,inf,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,0,4194304,1.00000000000000000,-0.000000000,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,1,1896521,0.45216584205627441,1.145076084,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,2,339802,0.08101511001586914,3.625665182,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,3,35469,0.00845646858215332,6.885728964,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,4,400,0.00009536743164062,13.356143810,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,5,52,0.00001239776611328,16.299560282,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,6,7,0.00000166893005371,19.192645078,fixed,1,access-plus-rate-deterministic,1,2
+2,4,1,1024,1048576,4194304,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,7,0,0.00000000000000000,inf,fixed,1,access-plus-rate-deterministic,1,2

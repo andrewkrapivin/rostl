@@ -3,8 +3,8 @@
 
 use bytemuck::{Pod, Zeroable};
 use rostl_primitives::{
-  cmov_body, cxchg_body, impl_cmov_for_generic_pod, indexable::Length, traits::Cmov,
-  traits::_Cmovbase,
+  cmov_body, cxchg_body, impl_cmov_for_generic_pod, indexable::Length, traits::_Cmovbase,
+  traits::Cmov,
 };
 
 use crate::array::ShortArray;

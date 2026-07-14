@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650" viewBox="0 0 1000 650">
+<rect width="100%" height="100%" fill="white"/>
+<text x="500.0" y="35" text-anchor="middle" font-family="sans-serif" font-size="22">Lane ORAM stash fraction grows with capacity</text>
+<line x1="90.0" y1="65" x2="90.0" y2="570" stroke="#eeeeee"/>
+<text x="90.0" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">6</text>
+<line x1="187.22222222222223" y1="65" x2="187.22222222222223" y2="570" stroke="#eeeeee"/>
+<text x="187.22222222222223" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">7</text>
+<line x1="284.44444444444446" y1="65" x2="284.44444444444446" y2="570" stroke="#eeeeee"/>
+<text x="284.44444444444446" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">8</text>
+<line x1="381.66666666666663" y1="65" x2="381.66666666666663" y2="570" stroke="#eeeeee"/>
+<text x="381.66666666666663" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">9</text>
+<line x1="478.88888888888886" y1="65" x2="478.88888888888886" y2="570" stroke="#eeeeee"/>
+<text x="478.88888888888886" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">10</text>
+<line x1="576.1111111111111" y1="65" x2="576.1111111111111" y2="570" stroke="#eeeeee"/>
+<text x="576.1111111111111" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">11</text>
+<line x1="673.3333333333333" y1="65" x2="673.3333333333333" y2="570" stroke="#eeeeee"/>
+<text x="673.3333333333333" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">12</text>
+<line x1="770.5555555555555" y1="65" x2="770.5555555555555" y2="570" stroke="#eeeeee"/>
+<text x="770.5555555555555" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">13</text>
+<line x1="867.7777777777777" y1="65" x2="867.7777777777777" y2="570" stroke="#eeeeee"/>
+<text x="867.7777777777777" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">14</text>
+<line x1="965.0" y1="65" x2="965.0" y2="570" stroke="#eeeeee"/>
+<text x="965.0" y="597" text-anchor="middle" font-family="sans-serif" font-size="14">15</text>
+<line x1="90" y1="570.0" x2="965" y2="570.0" stroke="#dddddd"/>
+<text x="78" y="575.0" text-anchor="end" font-family="sans-serif" font-size="14">0.0</text>
+<line x1="90" y1="513.8888888888889" x2="965" y2="513.8888888888889" stroke="#dddddd"/>
+<text x="78" y="518.8888888888889" text-anchor="end" font-family="sans-serif" font-size="14">0.1</text>
+<line x1="90" y1="457.77777777777777" x2="965" y2="457.77777777777777" stroke="#dddddd"/>
+<text x="78" y="462.77777777777777" text-anchor="end" font-family="sans-serif" font-size="14">0.2</text>
+<line x1="90" y1="401.6666666666667" x2="965" y2="401.6666666666667" stroke="#dddddd"/>
+<text x="78" y="406.6666666666667" text-anchor="end" font-family="sans-serif" font-size="14">0.3</text>
+<line x1="90" y1="345.55555555555554" x2="965" y2="345.55555555555554" stroke="#dddddd"/>
+<text x="78" y="350.55555555555554" text-anchor="end" font-family="sans-serif" font-size="14">0.4</text>
+<line x1="90" y1="289.44444444444446" x2="965" y2="289.44444444444446" stroke="#dddddd"/>
+<text x="78" y="294.44444444444446" text-anchor="end" font-family="sans-serif" font-size="14">0.5</text>
+<line x1="90" y1="233.33333333333334" x2="965" y2="233.33333333333334" stroke="#dddddd"/>
+<text x="78" y="238.33333333333334" text-anchor="end" font-family="sans-serif" font-size="14">0.6</text>
+<line x1="90" y1="177.22222222222229" x2="965" y2="177.22222222222229" stroke="#dddddd"/>
+<text x="78" y="182.22222222222229" text-anchor="end" font-family="sans-serif" font-size="14">0.7</text>
+<line x1="90" y1="121.11111111111109" x2="965" y2="121.11111111111109" stroke="#dddddd"/>
+<text x="78" y="126.11111111111109" text-anchor="end" font-family="sans-serif" font-size="14">0.8</text>
+<line x1="90" y1="65.0" x2="965" y2="65.0" stroke="#dddddd"/>
+<text x="78" y="70.0" text-anchor="end" font-family="sans-serif" font-size="14">0.9</text>
+<line x1="90" y1="65" x2="90" y2="570" stroke="black" stroke-width="2"/>
+<line x1="90" y1="570" x2="965" y2="570" stroke="black" stroke-width="2"/>
+<text x="527.5" y="628" text-anchor="middle" font-family="sans-serif" font-size="17">log₂(N)</text>
+<text x="25" y="317.5" transform="rotate(-90 25 317.5)" text-anchor="middle" font-family="sans-serif" font-size="17">mean post-eviction stash / N</text>
+<polyline fill="none" stroke="#0072b2" stroke-width="3" points="90.00,448.71 284.44,386.28 478.89,342.93 673.33,311.46 867.78,288.64"/>
+<circle cx="90.00" cy="448.71" r="4" fill="#0072b2"/>
+<circle cx="284.44" cy="386.28" r="4" fill="#0072b2"/>
+<circle cx="478.89" cy="342.93" r="4" fill="#0072b2"/>
+<circle cx="673.33" cy="311.46" r="4" fill="#0072b2"/>
+<circle cx="867.78" cy="288.64" r="4" fill="#0072b2"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="3" points="90.00,355.12 284.44,265.82 478.89,212.90 673.33,177.68 867.78,154.55"/>
+<circle cx="90.00" cy="355.12" r="4" fill="#d55e00"/>
+<circle cx="284.44" cy="265.82" r="4" fill="#d55e00"/>
+<circle cx="478.89" cy="212.90" r="4" fill="#d55e00"/>
+<circle cx="673.33" cy="177.68" r="4" fill="#d55e00"/>
+<circle cx="867.78" cy="154.55" r="4" fill="#d55e00"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="3" points="90.00,423.55 284.44,317.18 478.89,252.94 673.33,211.74 867.78,183.16"/>
+<circle cx="90.00" cy="423.55" r="4" fill="#e69f00"/>
+<circle cx="284.44" cy="317.18" r="4" fill="#e69f00"/>
+<circle cx="478.89" cy="252.94" r="4" fill="#e69f00"/>
+<circle cx="673.33" cy="211.74" r="4" fill="#e69f00"/>
+<circle cx="867.78" cy="183.16" r="4" fill="#e69f00"/>
+<polyline fill="none" stroke="#009e73" stroke-width="3" points="90.00,376.71 381.67,210.59 673.33,139.11 965.00,102.80"/>
+<circle cx="90.00" cy="376.71" r="4" fill="#009e73"/>
+<circle cx="381.67" cy="210.59" r="4" fill="#009e73"/>
+<circle cx="673.33" cy="139.11" r="4" fill="#009e73"/>
+<circle cx="965.00" cy="102.80" r="4" fill="#009e73"/>
+<polyline fill="none" stroke="#cc79a7" stroke-width="3" points="90.00,417.45 381.67,233.43 673.33,153.58 965.00,113.88"/>
+<circle cx="90.00" cy="417.45" r="4" fill="#cc79a7"/>
+<circle cx="381.67" cy="233.43" r="4" fill="#cc79a7"/>
+<circle cx="673.33" cy="153.58" r="4" fill="#cc79a7"/>
+<circle cx="965.00" cy="113.88" r="4" fill="#cc79a7"/>
+<line x1="115" y1="90" x2="147" y2="90" stroke="#0072b2" stroke-width="4"/>
+<text x="157" y="95" font-family="sans-serif" font-size="14">B=2, Z=3</text>
+<line x1="115" y1="115" x2="147" y2="115" stroke="#d55e00" stroke-width="4"/>
+<text x="157" y="120" font-family="sans-serif" font-size="14">B=4, Z=5</text>
+<line x1="115" y1="140" x2="147" y2="140" stroke="#e69f00" stroke-width="4"/>
+<text x="157" y="145" font-family="sans-serif" font-size="14">B=4, Z=6</text>
+<line x1="115" y1="165" x2="147" y2="165" stroke="#009e73" stroke-width="4"/>
+<text x="157" y="170" font-family="sans-serif" font-size="14">B=8, Z=9</text>
+<line x1="115" y1="190" x2="147" y2="190" stroke="#cc79a7" stroke-width="4"/>
+<text x="157" y="195" font-family="sans-serif" font-size="14">B=8, Z=10</text>
+</svg>

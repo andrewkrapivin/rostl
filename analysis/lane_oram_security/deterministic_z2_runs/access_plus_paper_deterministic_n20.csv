@@ -1,0 +1,12 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,0,2848,0.00271606445312500,8.524266569,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,1,314,0.00029945373535156,11.705379251,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,2,38,0.00003623962402344,14.752072487,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,3,4,0.00000381469726562,18.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,4,0,0.00000000000000000,inf,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,0,1048576,1.00000000000000000,-0.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,1,2848,0.00271606445312500,8.524266569,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,2,314,0.00029945373535156,11.705379251,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,3,38,0.00003623962402344,14.752072487,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,4,4,0.00000381469726562,18.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,1048576,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,5,0,0.00000000000000000,inf,fixed,1,access-plus-paper-deterministic

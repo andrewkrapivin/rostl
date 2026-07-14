@@ -6,7 +6,7 @@
 use bytemuck::{Pod, Zeroable};
 use rostl_primitives::{
   cmov_body, cxchg_body, impl_cmov_for_generic_pod,
-  traits::{Cmov, _Cmovbase},
+  traits::{_Cmovbase, Cmov},
 };
 
 use crate::heap_tree::HeapTree;

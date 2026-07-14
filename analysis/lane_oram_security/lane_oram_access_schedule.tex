@@ -1,0 +1,213 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,booktabs}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{conjecture}{Conjecture}
+\title{Access Schedules and Stash Growth in the Current Lane ORAM}
+\author{}
+\date{July 2026}
+
+\begin{document}
+\maketitle
+
+\paragraph{Model.}
+There are $N$ initialized logical keys.  On every access, the requested key is
+read on its old leaf path and assigned a fresh independent uniform leaf label.
+The logical schedule is fixed independently of these random labels.  This is
+the threat model used for the empirical experiment; an adaptive schedule that
+can observe secret labels is outside the ORAM model.
+
+\begin{lemma}[Uniform physical paths]
+Let $(a_t)_{t\geq 1}$ be a fixed logical schedule independent of the ORAM
+coins.  For each key $a$, let
+$U_{a,0},U_{a,1},\ldots$ be independent uniform elements of $[N]$, where
+$U_{a,0}$ is its initial label and $U_{a,j}$ is the label sampled by its $j$th
+access.  If
+\[
+  r_t=\left|\{s<t:a_s=a_t\}\right|,
+\]
+then the path read at time $t$ is $X_t=U_{a_t,r_t}$ and its fresh label is
+$Y_t=U_{a_t,r_t+1}$.  Consequently, $(X_t)_{t\geq1}$ is i.i.d. uniform and
+$X_t$ is independent of $Y_t$.
+\end{lemma}
+
+\begin{proof}
+The pairs $(a_t,r_t)$ are distinct: successive occurrences of one key have
+successive occurrence numbers, while different keys have different first
+coordinates.  Thus the variables $X_t$ select distinct members of the
+independent family $(U_{a,j})$.  The two variables defining $X_t$ and $Y_t$
+are also distinct.
+\end{proof}
+
+This lemma does \emph{not} make the entire Lane ORAM transition sequence
+schedule-independent.  If $t'$ is the next access to $a_t$, then
+$X_{t'}=Y_t$.  The reuse distance $t'-t$ therefore controls how long a block
+with label $Y_t$ is exposed to intervening lane-local evictions.
+
+\begin{lemma}[Repeated permutations are equivalent]
+Under exchangeable initialization and independent uniform labels, any two
+logical schedules obtained by endlessly repeating a permutation of all $N$
+keys have the same stash distribution.
+\end{lemma}
+
+\begin{proof}
+Rename each key according to the bijection taking the first permutation to the
+second.  The initial labels and all per-key label streams have a distribution
+invariant under this renaming.  The current Lane ORAM transition examines a
+key only for equality and otherwise uses its label, so the renamed execution
+has exactly the second schedule and the same stash occupancies.
+\end{proof}
+
+\begin{proposition}[Maximally nonrepeating schedules]
+Suppose an infinite schedule over $N$ keys has no repeated key in any window of
+$N$ consecutive accesses.  Then it is a repeated permutation: every length
+$N$ window contains all keys and $a_{t+N}=a_t$ for every $t$.
+\end{proposition}
+
+\begin{proof}
+A length-$N$ window contains $N$ distinct elements of an alphabet of size
+$N$, hence contains every key.  The windows beginning at $t$ and $t+1$ differ
+only by removing $a_t$ and adding $a_{t+N}$; equality of their underlying sets
+forces $a_{t+N}=a_t$.
+\end{proof}
+
+Thus round-robin has the largest possible minimum reuse distance.  It also
+represents every repeated permutation schedule.  The experiments confirm that
+it is strongly adverse: at $N=4096$, $B=2$, $Z=3$, mean stash occupancy was
+about $1885$ for four different repeated permutations, $1660$ for i.i.d.
+uniform logical keys, $0.30$ for a uniformly accessed hot set of 16 keys, and
+$0$ for one repeated key.
+
+\paragraph{What is not proved.}
+These facts do not prove that round-robin is the global worst-case schedule for
+Lane ORAM.  The duplicate-deletion argument cited for Path and Circuit ORAM
+uses an infinite-bucket representation followed by order-independent global
+greedy postprocessing.  In the current Lane ORAM, a block keeps a persistent
+lane in the tree, root admission takes the first stash block, and holes move
+only within one lane.  Deleting a duplicate access can therefore change both
+future lane assignments and hole chains.  No monotone coupling between reuse
+distance and Lane stash occupancy is presently known.  The defensible claim is
+that round-robin is \emph{empirically adversarial} and maximally nonrepeating,
+not that it is a proved global maximizer.
+
+\paragraph{A rigorous initialization lower bound.}
+The current API loads a previously absent key by calling
+\texttt{update(0,new\_pos,key)}.  Loading distinct keys therefore reads path
+zero every time until the workload begins.
+
+\begin{theorem}[Sequential-loading failure]
+Load $N$ distinct absent keys, never revisiting a key during loading, and give
+each one a fresh independent uniform label.  Let $A$ be the number of blocks
+admitted from the stash into the tree and let $Q=N-A$ be the post-loading stash
+occupancy.  Put $p=(B-1)/B$.  Then
+\[
+  \mathbb{E}[A]\leq\frac{Z}{p}=\frac{ZB}{B-1},
+  \qquad
+  \mathbb{E}[Q]\geq N-\frac{ZB}{B-1},
+\]
+and, for every integer $m\geq0$,
+\[
+  \Pr[Q<N-m]=\Pr[A>m]
+  \leq \Pr[\operatorname{Bin}(m,p)<Z].
+\]
+Consequently, the probability that a stash of capacity $S$ survives loading is
+at most
+\[
+  \Pr[\operatorname{Bin}(N-S-1,p)<Z].
+\]
+\end{theorem}
+
+\begin{proof}
+Consider a block admitted into a free root lane.  With probability $p$, the
+first base-$B$ digit of its fresh label is nonzero.  Such a block cannot move
+below the root on path zero: its common prefix with zero has length less than
+$\log_2B$.  It is not requested again during loading, so that root lane is
+permanently sealed.  The labels of successively admitted blocks are independent.
+After $Z$ sealing labels, all root lanes are sealed and no further block can be
+admitted.  Any blockage deeper in a lane can only stop admissions earlier.
+Thus $A$ is stochastically dominated by the number of Bernoulli-$p$ trials
+needed to obtain $Z$ successes.  Its expectation is at most $Z/p$, and
+$A>m$ implies fewer than $Z$ successes among the first $m$ trials, proving the
+tail bound.  During loading no tree block is removed, so stash occupancy is
+nondecreasing and a capacity-$S$ execution survives only if $A\geq N-S$.
+\end{proof}
+
+For $N=4096$ and $S=20$, the theorem bounds survival by $2^{-4052}$ for
+$(B,Z)=(2,3)$; by $2^{-8100}$ and $2^{-8089}$ for $(4,5)$ and $(4,6)$; and by
+$2^{-12122}$ and $2^{-12110}$ for $(8,9)$ and $(8,10)$.  These are upper bounds
+on survival, not estimates.  The effectively unbounded-stash stationary
+experiment below is therefore hypothetical: the real $S=20$ instance almost
+certainly fails before reaching its warm-up phase.
+
+This lower bound persists for an initial portion of a later cyclic workload.
+One update can reduce post-writeback stash occupancy by at most $Z$, because
+removal and reinsertion do not reduce the stash before root admission and at
+most $Z$ root slots can drain it.  Therefore, deterministically,
+$Q_w\geq Q_N-Zw$ after $w$ further updates.  In particular, the stash remains
+linear for the first $\Theta(N)$ operations.
+
+\paragraph{Structural security evidence.}
+After initialization, block conservation gives the exact identity
+\[
+  S_t=N-\sum_{\ell=1}^{Z}T_{t,\ell},
+\]
+where $S_t$ is post-eviction stash occupancy and $T_{t,\ell}$ is the number of
+blocks resident in tree lane $\ell$.  The five trees have between $6N$ and
+$11.43N$ physical block slots, so the observed large stash is not ordinary
+capacity overload.  It is a failure of the fixed-lane admission and eviction
+dynamics to exploit those slots.
+
+The size-scaling experiments give the following mean stash fractions:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Configuration & largest exact $N$ tested & $\mathbb{E}[S]/N$ \\
+\midrule
+$B=2,Z=3$   & $2^{14}$ & $0.501$ \\
+$B=4,Z=5$   & $2^{14}$ & $0.740$ \\
+$B=4,Z=6$   & $2^{14}$ & $0.689$ \\
+$B=8,Z=9$   & $2^{15}$ & $0.833$ \\
+$B=8,Z=10$  & $2^{15}$ & $0.813$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+This directly contradicts the $N$-independent stash behavior sought from the
+Circuit ORAM methodology.
+
+\begin{conjecture}[Empirical fixed-lane scaling]
+Let $k=\log_2B$ and $L=\log_BN$.  Under repeated-permutation access, the mean
+tree occupancy of one lane satisfies
+\[
+  \frac{\mathbb{E}[T_{t,\ell}]}{N}
+  =\Theta\!\left(L^{-k/2}\right).
+\]
+Consequently, for fixed $B$ and $Z$,
+\[
+  \frac{\mathbb{E}[S_t]}{N}
+  =1-\Theta\!\left(\frac{Z}{L^{k/2}}\right)\longrightarrow1.
+\]
+\end{conjecture}
+The measured constants for $B=2,4,8$ are approximately $0.62$, $0.36$, and
+$0.21$, respectively.  This law fits all tested sizes and independent one-lane
+diagnostics, but it is an empirical conjecture rather than a security theorem.
+A proof would require a stationary analysis of the lane-local hole process and
+its root-admission queue.
+
+\paragraph{Failure probability.}
+The implementation fails at the transient insertion point, before root
+draining.  Therefore a stash of capacity $R$ fails on an operation exactly
+when the insertion demand exceeds $R$; post-writeback occupancy can understate
+this event.  A stationary snapshot estimate
+$\delta_R=\Pr[\text{demand}>R]$ also is not an ever-failure probability.  For
+$T$ operations, only the general union bound
+\[
+  \Pr[\text{some failure in }T]\leq T\delta_R
+\]
+follows without a dependence analysis.  Conversely, the experiments observed
+demand above $20$ on every one of $2^{27}$ measured round-robin operations for
+every requested configuration at $N=4096$.  Hence the current default
+$S=20$ is empirically inadequate by orders of magnitude.
+
+\end{document}

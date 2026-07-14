@@ -1,0 +1,14 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,0,2961,0.00282382965087891,8.468131225,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,1,365,0.00034809112548828,11.488247346,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,2,57,0.00005435943603516,14.167109986,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,3,7,0.00000667572021484,17.192645078,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,4,1,0.00000095367431641,20.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,post,5,0,0.00000000000000000,inf,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,0,1048576,1.00000000000000000,-0.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,1,2961,0.00282382965087891,8.468131225,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,2,365,0.00034809112548828,11.488247346,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,3,57,0.00005435943603516,14.167109986,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,4,7,0.00000667572021484,17.192645078,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,5,1,0.00000095367431641,20.000000000,fixed,1,access-plus-paper-deterministic
+2,1,2,1024,33554432,1048576,cycle,2,shared,os-getrandom,random-old-and-new-paths,insertion,6,0,0.00000000000000000,inf,fixed,1,access-plus-paper-deterministic

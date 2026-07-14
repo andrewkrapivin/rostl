@@ -1,0 +1,320 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{conjecture}{Conjecture}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prb}{\mathop{\mathrm{Pr}}}
+
+\title{Why the Current Fixed-Lane ORAM Stash Depends on $N$}
+\author{}
+\date{July 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Circuit ORAM has an $N$-uniform, exponentially decaying snapshot stash tail
+in its proved parameter regime.  The current fixed-lane ORAM transition does
+not exhibit this behavior.  For a binary tree of depth
+$L=\log_2 N$, experiments and a product-state flow calculation indicate that
+one saturated lane carries only $\Theta(L^{-1/2})$ useful load.  Consequently,
+maintaining a fixed operating margin requires approximately
+$Z=\Omega(\sqrt{\log_2 N})$ lanes.  This note gives exact conservation
+identities, a mean-field explanation of the square-root law, empirical
+validation, and a comparison with Circuit ORAM.  The conservation identities
+are exact; the stationary square-root law is a strongly supported conjecture,
+not yet a security theorem.
+\end{abstract}
+
+\section{Setting}
+
+Consider the current binary fixed-lane transition with $N=2^L$ logical
+blocks and $Z$ physical lanes per bucket.  Every access reads the path given
+by the requested block's old uniformly random label, removes the block,
+assigns it a fresh independent label, inserts it into the stash, admits stash
+blocks into free root lanes, and performs one lane-local eviction on the old
+path.
+
+The physical paths are IID uniform under a fixed repeated-permutation logical
+schedule.  The observed $N$-dependence is therefore not caused by biased or
+insufficiently random path selection.  It is caused by the amount of useful
+flow that the fixed-lane transition can sustain through a depth-$L$ routing
+network.
+
+\section{Exact conservation laws}
+
+Let $S_t$ be post-writeback stash occupancy after operation $t$.  During the
+next operation, let $I_t$ equal one if the requested block is removed from the
+tree and zero if it was already in the stash.  Let $A_t$ be the number of
+stash blocks admitted into free root lanes.  Block conservation gives the
+following identity without any probabilistic assumptions.
+
+\begin{proposition}[Root conservation]
+\label{prop:root}
+For every operation,
+\[
+  S_{t+1}-S_t=I_t-A_t.
+\]
+In stationarity,
+\[
+  \E[A_t]=\Prb[I_t=1].
+\]
+\end{proposition}
+
+There is an analogous identity across every tree cut.  Fix a depth $d$, and
+let $U_{d,t}$ be the number of blocks stored at depths $0,\ldots,d$.  Let
+$R_{d,t}$ indicate removal of the requested block from this upper region, and
+let $C_{d,t}$ count blocks moved downward across the cut below depth $d$.
+Lane eviction never moves blocks upward, so
+\[
+  U_{d,t+1}-U_{d,t}=A_t-R_{d,t}-C_{d,t}.
+\]
+Combining stationary balance with Proposition~\ref{prop:root} yields
+\begin{proposition}[Cut conservation]
+\label{prop:cut}
+In stationarity,
+\[
+  \E[C_{d,t}]
+  =\Prb[\text{the requested block is in the tree below depth }d].
+\]
+\end{proposition}
+
+The upper $d$ levels have only $Z(2^{d+1}-1)$ slots.  Hence a small-stash
+ORAM containing $N$ blocks must place almost all blocks below every fixed
+shallow cut as $N$ grows.  Proposition~\ref{prop:cut} then requires nearly
+one aggregate downward crossing per operation through almost every shallow
+cut.  Nominal tree capacity by itself is insufficient; the eviction process
+must provide the required flow at every depth.
+
+\section{Why lower occupancy does not create first-order slack}
+
+Suppose a small-stash system divides one unit of aggregate flow among $Z$
+lanes.  Each lane must carry approximately
+\[
+  q\simeq \frac{1}{Z}
+\]
+blocks per operation.  At binary depth $d$, a block sees the correct next-bit
+eviction path once per $2^{d+1}$ global operations, while arrivals are split
+among $2^d$ nodes.  In dilute flow, Little's-law reasoning therefore gives a
+typical lane-slot occupancy
+\[
+  \rho\simeq 2q.
+\]
+
+Thus adding lanes really does lower occupancy.  However, a useful move also
+requires an occupied source.  The ideal binary flow from one lane is
+$\rho/2\simeq q$, exactly the offered load.  The first-order benefit of more
+holes is cancelled by the first-order loss of occupied sources, leaving no
+constant service margin.
+
+For an independent Bernoulli path state with occupied probability $\rho$, a
+direct expansion of the production mask's local cut current gives
+\begin{equation}
+\label{eq:current}
+  J_2(\rho)
+  =\frac{\rho}{2}-\frac{3}{64}\rho^3+O(\rho^4).
+\end{equation}
+The quadratic term cancels because the mask can jump over one incompatible
+occupied blocker.  Substituting $\rho\simeq2q$ gives
+\begin{equation}
+\label{eq:flow-q}
+  J_2(2q)=q-\frac{3}{8}q^3+O(q^4).
+\end{equation}
+Consequently, one routing level loses a relative $O(q^2)$ fraction of ideal
+flow.
+
+A lane storing a non-negligible fraction of $N$ blocks must route blocks down
+to depth $L-O(\log L)$, so the loss is accumulated over $\Theta(L)$ prefix
+stages.  Equations~\eqref{eq:current}--\eqref{eq:flow-q} therefore suggest
+that the relevant dimensionless congestion parameter is
+\[
+  Lq^2.
+\]
+Nonvanishing end-to-end flow requires $Lq^2=O(1)$, giving
+\begin{equation}
+\label{eq:sqrt-law}
+  q_L=\Theta(L^{-1/2}).
+\end{equation}
+This is a mean-field scaling argument rather than a proof for the correlated
+stationary ORAM process.
+
+An equivalent intuition views a vacancy created deep in a lane as prefix
+credit that must propagate back to the root.  Random left/right demand and
+eviction opportunities produce an approximately zero-drift reflected walk.
+Its typical imbalance or maximum over $L$ stages is $\Theta(\sqrt L)$, so the
+usable load is its reciprocal.  Fixed lane identity prevents imbalances and
+vacancies from being pooled across lanes.
+
+\section{Measured per-lane law}
+
+Production-equivalent saturated one-lane experiments used direct operating
+system randomness, random initial labels, fresh independent labels on every
+access, and at least $64N$ warm-up operations.  Define
+\[
+  q_L=\frac{\E[\text{blocks resident in one lane tree}]}{N}.
+\]
+The measured products were
+\begin{center}
+\begin{tabular}{c@{\qquad}c}
+\toprule
+$L$ & $q_L\sqrt L$ \\
+\midrule
+10 & 0.6317 \\
+12 & 0.6221 \\
+14 & 0.6222 \\
+16 & 0.6246 \\
+18 & 0.6317 \\
+20 & 0.6327 \\
+\bottomrule
+\end{tabular}
+\end{center}
+These results support
+\begin{equation}
+\label{eq:fitted-q}
+  q_L\simeq\frac{c}{\sqrt L},\qquad c\simeq0.627.
+\end{equation}
+The fitted constant is strikingly close to
+$\sqrt{\pi/8}=0.626657\ldots$.  A random-walk maximum heuristic can produce
+this value, but the required mapping and its factor of two have not been
+proved.  The constant must therefore be regarded as empirical.
+
+When the global stash is backlogged, the $Z$ marginal lanes behave
+approximately as parallel saturated copies.  This gives the fluid
+approximation
+\begin{equation}
+\label{eq:stash-law}
+  \boxed{
+  \frac{\E[S]}{N}
+  \simeq
+  \left(1-\frac{0.627Z}{\sqrt{\log_2N}}\right)_+.}
+\end{equation}
+The corresponding crossover height is
+\begin{equation}
+\label{eq:crossover}
+  L_{\mathrm{crit}}(Z)\simeq(0.627Z)^2,
+  \qquad
+  Z_{\mathrm{crit}}(L)\simeq1.595\sqrt L.
+\end{equation}
+
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+$Z$ & Predicted $L_{\mathrm{crit}}$ & Observed behavior \\
+\midrule
+5 & 9.8  & degradation near $N=2^{10}$ \\
+6 & 14.2 & degradation near $N=2^{14}$ \\
+7 & 19.3 & small through $2^{18}$, large at $2^{20}$ \\
+8 & 25.2 & small but increasingly heavy-tailed through $2^{20}$ \\
+9 & 31.8 & small through $2^{20}$; no asymptotic guarantee \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The abrupt transition is ordinary queue stability.  For example, at $Z=7$
+the fitted aggregate capacity is $1.034$ at $L=18$ but $0.981$ at $L=20$.
+A few percent change moves the queue from slightly negative to slightly
+positive drift.  Since $N=2^L$, adding one lane can postpone the transition
+by a very large multiplicative factor in $N$.
+
+\section{Direct $Z=6$ and $Z=7$ results}
+
+The current block-conserving simulator produced the following mean
+post-writeback stash occupancies.
+\begin{center}
+\begin{tabular}{r@{\qquad}r@{\qquad}r}
+\toprule
+$N$ & $Z=6$ & $Z=7$ \\
+\midrule
+$2^{10}$ & 0.773 & 0.076 \\
+$2^{12}$ & 6.288 & 0.222 \\
+$2^{14}$ & 207.214 & 0.762 \\
+$2^{16}$ & 4314.083 & 3.668 \\
+$2^{18}$ & 29660.358 & 32--41 \\
+$2^{20}$ & --- & 9416.649 \\
+\bottomrule
+\end{tabular}
+\end{center}
+At $N=2^{20}$, the $Z=7$ measured range was 1542--16682 after a
+$2^{26}$-operation warm-up.  Thus its excellent small-$N$ behavior was a
+finite-height effect, not an $N$-uniform stash bound.
+
+At $N=2^{20}$, current $Z=8$ had mean stash 0.873 but transient insertion
+demand exceeded 20 with probability approximately $1.10\%$.  Current $Z=9$
+had mean 0.049 and exceedance probability approximately
+$1.33\times10^{-4}$.  These finite-run probabilities are snapshot estimates,
+not lifetime failure bounds or cryptographic extrapolations.
+
+\section{Greedy fixed-lane control}
+
+A corrected, conserving deepest-hole transition improves the per-lane
+constant but does not change the observed exponent:
+\[
+  q_L^{\mathrm{greedy}}\simeq\frac{0.82}{\sqrt L}.
+\]
+At $N=2^{20}$, greedy $Z=6$ and $Z=7$ had mean post-stash occupancies 2.529
+and 0.095, respectively, compared with 9416.649 for current $Z=7$.
+The predicted greedy crossover heights are approximately 24 for $Z=6$ and
+33 for $Z=7$.  Greedy movement therefore matters substantially, but the
+fixed-lane routing evidence still suggests $Z=\Omega(\sqrt{\log_2N})$ for
+binary trees.
+
+\section{Why Circuit ORAM is different}
+
+Circuit ORAM's proved snapshot stash bound has the form
+\[
+  \Prb[S>R]\le C\alpha^R,
+  \qquad \alpha<1,
+\]
+with constants independent of $N$ in the theorem's parameter regime.
+Therefore its expected snapshot stash is $O(1)$ independently of $N$; only a
+separate lifetime union bound forces $R$ to grow with the number of operations
+or desired security parameter.
+
+Circuit ORAM does not route vacancies through permanently separated channels.
+It pools bucket slots, chooses the deepest compatible candidate from the
+stash and path, moves directly into deep vacancies, and performs two eviction
+paths per logical access.  These mechanisms provide an $N$-uniform service
+margin.  Lane ORAM does have $Z$ potential parallel chains, but the useful
+capacity of each fixed chain decreases with routing depth because small local
+losses accumulate at every prefix stage.
+
+\section{General branching factors}
+
+Binary branching is unusually favorable.  In the same independent path-state
+model, general branching factor $B$ gives
+\[
+  J_B(\rho)
+  =\frac{\rho}{B}
+   -\frac{(B-1)(B-2)}{B^3}\rho^2
+   +O(\rho^3).
+\]
+The quadratic loss cancels only for $B=2$.  Since dilute occupancy satisfies
+$\rho\simeq Bq$, for $B>2$ the relative loss per level is $O(q)$ rather than
+$O(q^2)$.  Across $L=\log_BN$ levels this suggests
+\[
+  q_L=\Theta(1/L),
+  \qquad Z=\Omega(\log_BN).
+\]
+Existing $B=4$ data fit $q_LL\simeq0.363$, and independent $Z$ values infer
+the same marginal per-lane capacity.  This explains why the tested $B=4$ and
+$B=8$ configurations perform worse than their raw number of simultaneous
+lane moves suggests.
+
+\section{Status of the analysis}
+
+Propositions~\ref{prop:root} and~\ref{prop:cut} are exact consequences of
+block conservation.  Equation~\eqref{eq:current} is exact for an IID
+Bernoulli product-state model of a loaded path.  The extension from that local
+model to the correlated stationary ORAM process, the square-root stationary
+law, and the numerical constant in Equation~\eqref{eq:fitted-q} remain
+conjectural.  Their unusually accurate agreement across tree sizes and lane
+counts makes them a strong explanation of the observed behavior, but not a
+replacement for a formal stash-security proof.
+
+\end{document}

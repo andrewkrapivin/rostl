@@ -9,6 +9,10 @@ pub mod circuit_oram;
 
 pub mod lane_oram;
 
+pub mod lane_oram_fixed;
+
+pub mod lane_oram_sim;
+
 pub mod prelude;
 
 pub mod recursive_oram;

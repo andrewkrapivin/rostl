@@ -1,0 +1,12 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule,deterministic_numerator,deterministic_denominator
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,post,0,1573558,0.37516546249389648,1.414401075,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,post,1,174503,0.04160475730895996,4.587107687,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,post,2,4,0.00000095367431641,20.000000000,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,post,3,1,0.00000023841857910,22.000000000,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,post,4,0,0.00000000000000000,inf,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,insertion,0,4194304,1.00000000000000000,-0.000000000,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,insertion,1,1573559,0.37516570091247559,1.414400158,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,insertion,2,174504,0.04160499572753906,4.587099419,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,insertion,3,4,0.00000095367431641,20.000000000,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,insertion,4,1,0.00000023841857910,22.000000000,fixed,1,access-plus-rate-deterministic,2,3
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,insertion,5,0,0.00000000000000000,inf,fixed,1,access-plus-rate-deterministic,2,3

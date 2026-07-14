@@ -523,6 +523,7 @@ version = "0.1.0-alpha9"
 dependencies = [
  "bytemuck",
  "criterion",
+ "getrandom",
  "rand",
  "rostl-primitives",
  "rostl-sort",

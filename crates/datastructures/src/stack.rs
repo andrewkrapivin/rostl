@@ -8,8 +8,8 @@ use rostl_oram::{
   prelude::{PositionType, DUMMY_POS},
 };
 use rostl_primitives::{
-  cmov_body, cxchg_body, impl_cmov_for_generic_pod, indexable::Length, traits::Cmov,
-  traits::_Cmovbase,
+  cmov_body, cxchg_body, impl_cmov_for_generic_pod, indexable::Length, traits::_Cmovbase,
+  traits::Cmov,
 };
 
 #[repr(align(8))]

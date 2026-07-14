@@ -1,0 +1,8 @@
+n,b,z,warmup,operations,rng,initialization,post_min,post_mean,post_max,insertion_min,insertion_mean,insertion_max,post_mean_fraction
+64,2,5,8388608,4194304,os-getrandom,random-old-and-new-paths,0,0.228,32,1,1.228,33,0.0035625
+256,2,5,8388608,4194304,os-getrandom,random-old-and-new-paths,0,1.849,109,1,2.849,110,0.00722266
+1024,2,5,33554432,16777216,os-getrandom,random-old-and-new-paths,0,33.295,280,1,34.283,281,0.0325146
+4096,2,5,33554432,16777216,os-getrandom,random-old-and-new-paths,41,434.773,975,41,435.676,976,0.106146
+16384,2,5,8388608,4194304,os-getrandom,random-old-and-new-paths,1944,2769.541,3774,1945,2770.374,3775,0.169039
+65536,2,5,33554432,8388608,os-getrandom,random-old-and-new-paths,12822,14488.143,16873,12823,14488.923,16874,0.221072
+262144,2,5,33554432,8388608,os-getrandom,random-old-and-new-paths,65064,68413.613,71747,65064,68414.352,71747,0.260977

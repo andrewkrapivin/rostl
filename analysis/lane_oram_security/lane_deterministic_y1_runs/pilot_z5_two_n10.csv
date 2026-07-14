@@ -1,0 +1,4 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,post,0,0,0.00000000000000000,inf,fixed,1,access-plus-paper-deterministic
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,insertion,0,4194304,1.00000000000000000,-0.000000000,fixed,1,access-plus-paper-deterministic
+2,5,1,1024,1048576,4194304,cycle,5,shared,os-getrandom,random-old-and-new-paths,insertion,1,0,0.00000000000000000,inf,fixed,1,access-plus-paper-deterministic

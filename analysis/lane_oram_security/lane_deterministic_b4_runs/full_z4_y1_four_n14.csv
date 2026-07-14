@@ -1,0 +1,12 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,0,10914,0.01040840148925781,6.586107672,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,1,678,0.00064659118652344,10.594858537,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,2,37,0.00003528594970703,14.790546634,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,3,7,0.00000667572021484,17.192645078,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,post,4,0,0.00000000000000000,inf,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,0,1048576,1.00000000000000000,-0.000000000,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,1,10914,0.01040840148925781,6.586107672,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,2,678,0.00064659118652344,10.594858537,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,3,37,0.00003528594970703,14.790546634,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,4,7,0.00000667572021484,17.192645078,fixed,1,access-plus-radix-deterministic
+4,4,1,16384,33554432,1048576,cycle,4,shared,os-getrandom,random-old-and-new-paths,insertion,5,0,0.00000000000000000,inf,fixed,1,access-plus-radix-deterministic
