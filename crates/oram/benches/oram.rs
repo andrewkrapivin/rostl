@@ -12,6 +12,8 @@ use bytemuck::{Pod, Zeroable};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 use rostl_oram::lane_oram::{Block32, LaneORAM};
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+use rostl_oram::optimized_circuit_oram::{OptimizedCircuitORAM, DATA_SIZE};
 use rostl_oram::{
   circuit_oram::CircuitORAM, linear_oram::LinearORAM, recursive_oram::RecursivePositionMap,
 };
@@ -146,6 +148,40 @@ pub fn benchmark_random_oram_updates<T: Measurement + 'static>(c: &mut Criterion
         black_box(old);
       });
     });
+
+    group.bench_with_input(
+      BenchmarkId::new("OptimizedCircuitORAM_24B_2Lane", log_n),
+      &size,
+      |b, &size| {
+        let mut position_rng = StdRng::seed_from_u64(log_n as u64);
+        let mut value_rng = StdRng::seed_from_u64(0x1000 + log_n as u64);
+        let mut positions = vec![0u32; UPDATE_COUNT];
+        let mut values = vec![[0u8; DATA_SIZE]; UPDATE_COUNT];
+        for index in 0..UPDATE_COUNT {
+          positions[index] = position_rng.random_range(0..size) as u32;
+          value_rng.fill(&mut values[index]);
+        }
+
+        let mut oram = OptimizedCircuitORAM::new(size);
+        oram.write_or_insert(0, 0, 0, [0; DATA_SIZE]);
+        let mut current_pos = 0;
+        let mut update_index = 0;
+
+        b.iter(|| {
+          let new_pos = positions[update_index];
+          let replacement = values[update_index];
+          let (_, old) =
+            oram.update(black_box(current_pos), black_box(new_pos), black_box(0), |value| {
+              let old = *value;
+              *value = replacement;
+              old
+            });
+          current_pos = new_pos;
+          update_index = (update_index + 1) & (UPDATE_COUNT - 1);
+          black_box(old);
+        });
+      },
+    );
 
     group.bench_with_input(BenchmarkId::new("LaneORAM_56B_Z3", log_n), &size, |b, &size| {
       let mut position_rng = StdRng::seed_from_u64(log_n as u64);
