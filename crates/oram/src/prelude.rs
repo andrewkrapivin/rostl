@@ -6,6 +6,6 @@ pub type PositionType = u32;
 /// The default invalid position
 pub const DUMMY_POS: PositionType = PositionType::MAX;
 
-// UNDONE(git-26): This should be a generic type across the crate to support safe map, not just usize
+// UNDONE(git-26): This should be a generic type across the crate to support safe map, not just u32
 /// Type used for ORAM Indexes
-pub type K = usize;
+pub type K = u32;

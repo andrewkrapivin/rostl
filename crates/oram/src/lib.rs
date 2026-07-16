@@ -9,6 +9,10 @@ pub mod circuit_oram;
 
 pub mod optimized_circuit_oram;
 
+pub mod optimized_circuit_oram_big_values;
+
+pub mod big_kv_optimized_circuit_oram;
+
 pub mod lane_oram;
 
 pub mod prelude;

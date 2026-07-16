@@ -6,7 +6,7 @@
 use bytemuck::{Pod, Zeroable};
 use rostl_primitives::{
   cmov_body, cxchg_body, impl_cmov_for_generic_pod,
-  traits::{Cmov, _Cmovbase},
+  traits::{_Cmovbase, Cmov},
 };
 
 use crate::heap_tree::HeapTree;
@@ -596,6 +596,18 @@ mod tests {
 
   use super::*;
   use rand::{rng, Rng};
+
+  #[repr(C)]
+  #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+  struct Value24ForLayoutTest([u64; 3]);
+  rostl_primitives::impl_cmov_for_pod!(Value24ForLayoutTest);
+
+  #[test]
+  fn twenty_four_byte_values_make_exactly_thirty_two_byte_blocks() {
+    assert_eq!(std::mem::size_of::<Value24ForLayoutTest>(), 24);
+    assert_eq!(std::mem::size_of::<Block<Value24ForLayoutTest>>(), 32);
+    assert_eq!(std::mem::size_of::<Bucket<Value24ForLayoutTest>>(), 64);
+  }
 
   fn assert_empty_stash(oram: &CircuitORAM<u64>) {
     for elem in &oram.stash[..S] {

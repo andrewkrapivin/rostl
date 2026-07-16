@@ -9,7 +9,7 @@ use rand::{rng, Rng};
 use rostl_oram::{
   circuit_oram::CircuitORAM,
   linear_oram::{oblivious_read_index, oblivious_write_index},
-  prelude::PositionType,
+  prelude::{PositionType, K},
   recursive_oram::RecursivePositionMap,
 };
 use rostl_primitives::{indexable::Length, traits::Cmov};
@@ -92,15 +92,15 @@ where
   /// Reads from the index
   pub fn read(&mut self, index: usize, out: &mut T) {
     let new_pos = rng().random_range(0..N as PositionType);
-    let old_pos = self.pos_map.access_position(index, new_pos);
-    self.data.read(old_pos, new_pos, index, out);
+    let old_pos = self.pos_map.access_position(index as K, new_pos);
+    self.data.read(old_pos, new_pos, index as K, out);
   }
 
   /// Writes to the index
   pub fn write(&mut self, index: usize, value: T) {
     let new_pos = rng().random_range(0..N as PositionType);
-    let old_pos = self.pos_map.access_position(index, new_pos);
-    self.data.write_or_insert(old_pos, new_pos, index, value);
+    let old_pos = self.pos_map.access_position(index as K, new_pos);
+    self.data.write_or_insert(old_pos, new_pos, index as K, value);
   }
 }
 
@@ -293,15 +293,15 @@ where
   /// Reads from the index
   pub fn read(&mut self, index: usize, out: &mut T) {
     let new_pos = rng().random_range(0..self.len() as PositionType);
-    let old_pos = self.pos_map.access_position(index, new_pos);
-    self.data.read(old_pos, new_pos, index, out);
+    let old_pos = self.pos_map.access_position(index as K, new_pos);
+    self.data.read(old_pos, new_pos, index as K, out);
   }
 
   /// Writes to the index
   pub fn write(&mut self, index: usize, value: T) {
     let new_pos = rng().random_range(0..self.len() as PositionType);
-    let old_pos = self.pos_map.access_position(index, new_pos);
-    self.data.write_or_insert(old_pos, new_pos, index, value);
+    let old_pos = self.pos_map.access_position(index as K, new_pos);
+    self.data.write_or_insert(old_pos, new_pos, index as K, value);
   }
 
   /// Updates the value at the index using the update function.
@@ -310,8 +310,8 @@ where
     F: FnOnce(&mut T) -> R,
   {
     let new_pos = rng().random_range(0..self.len() as PositionType);
-    let old_pos = self.pos_map.access_position(index, new_pos);
-    self.data.update(old_pos, new_pos, index, update_func)
+    let old_pos = self.pos_map.access_position(index as K, new_pos);
+    self.data.update(old_pos, new_pos, index as K, update_func)
   }
 }
 
@@ -354,17 +354,17 @@ where
   /// Reads from the subarray and index
   pub fn read(&mut self, subarray: usize, index: usize, out: &mut T) {
     let new_pos = rng().random_range(0..self.len() as PositionType);
-    let old_pos = self.pos_map[subarray].access_position(index, new_pos);
+    let old_pos = self.pos_map[subarray].access_position(index as K, new_pos);
     let real_index = self.get_real_index(subarray, index);
-    self.data.read(old_pos, new_pos, real_index, out);
+    self.data.read(old_pos, new_pos, real_index as K, out);
   }
 
   /// Writes to the subarray and index
   pub fn write(&mut self, subarray: usize, index: usize, value: T) {
     let new_pos = rng().random_range(0..self.len() as PositionType);
-    let old_pos = self.pos_map[subarray].access_position(index, new_pos);
+    let old_pos = self.pos_map[subarray].access_position(index as K, new_pos);
     let real_index = self.get_real_index(subarray, index);
-    self.data.write_or_insert(old_pos, new_pos, real_index, value);
+    self.data.write_or_insert(old_pos, new_pos, real_index as K, value);
   }
 
   /// Updates the value at the subarray and index using the update function.
@@ -373,9 +373,9 @@ where
     F: FnOnce(&mut T) -> R,
   {
     let new_pos = rng().random_range(0..self.len() as PositionType);
-    let old_pos = self.pos_map[subarray].access_position(index, new_pos);
+    let old_pos = self.pos_map[subarray].access_position(index as K, new_pos);
     let real_index = self.get_real_index(subarray, index);
-    self.data.update(old_pos, new_pos, real_index, update_func)
+    self.data.update(old_pos, new_pos, real_index as K, update_func)
   }
 }
 

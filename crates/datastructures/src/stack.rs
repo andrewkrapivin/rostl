@@ -5,11 +5,11 @@ use bytemuck::{Pod, Zeroable};
 use rand::{rng, Rng};
 use rostl_oram::{
   circuit_oram::CircuitORAM,
-  prelude::{PositionType, DUMMY_POS},
+  prelude::{PositionType, DUMMY_POS, K},
 };
 use rostl_primitives::{
-  cmov_body, cxchg_body, impl_cmov_for_generic_pod, indexable::Length, traits::Cmov,
-  traits::_Cmovbase,
+  cmov_body, cxchg_body, impl_cmov_for_generic_pod, indexable::Length, traits::_Cmovbase,
+  traits::Cmov,
 };
 
 #[repr(align(8))]
@@ -62,7 +62,7 @@ where
 
     let wv = StackElement { value, next: self.top };
 
-    let _found = self.oram.write_or_insert(read_pos, new_pos, new_id, wv);
+    let _found = self.oram.write_or_insert(read_pos, new_pos, new_id as K, wv);
     debug_assert!(!_found);
 
     self.top.cmov(&new_pos, real); // if real, top is new_pos
@@ -84,7 +84,7 @@ where
 
     let mut imse = StackElement::default();
 
-    self.oram.read(read_pos, read_pos, target_id, &mut imse);
+    self.oram.read(read_pos, read_pos, target_id as K, &mut imse);
 
     out.cmov(&imse.value, real);
     self.top.cmov(&imse.next, real);

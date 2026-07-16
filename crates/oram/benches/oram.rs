@@ -11,9 +11,17 @@ use bytemuck::{Pod, Zeroable};
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 use rand::{rngs::StdRng, Rng, SeedableRng};
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+use rostl_oram::big_kv_optimized_circuit_oram::{
+  BigKvOptimizedCircuitOram, DATA_SIZE as BIG_KV_DATA_SIZE,
+};
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 use rostl_oram::lane_oram::{Block32, LaneORAM};
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 use rostl_oram::optimized_circuit_oram::{OptimizedCircuitORAM, DATA_SIZE};
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+use rostl_oram::optimized_circuit_oram_big_values::{
+  OptimizedCircuitORAMBigValuesWithStash, DATA_SIZE as BIG_DATA_SIZE,
+};
 use rostl_oram::{
   circuit_oram::CircuitORAM, linear_oram::LinearORAM, recursive_oram::RecursivePositionMap,
 };
@@ -119,6 +127,49 @@ pub fn benchmark_random_oram_updates<T: Measurement + 'static>(c: &mut Criterion
   for log_n in 10..=24 {
     let size = 1usize << log_n;
 
+    macro_rules! bench_big_values {
+      ($name:literal, $stash_size:literal, $gap:literal) => {
+        group.bench_with_input(BenchmarkId::new($name, log_n), &size, |b, &size| {
+          let mut position_rng = StdRng::seed_from_u64(log_n as u64);
+          let mut value_rng = StdRng::seed_from_u64(0x3000 + log_n as u64);
+          let mut oram = OptimizedCircuitORAMBigValuesWithStash::<$stash_size>::new(size);
+          let mut positions = vec![0u32; UPDATE_COUNT];
+          let mut values = vec![[0u8; BIG_DATA_SIZE]; UPDATE_COUNT];
+          for index in 0..UPDATE_COUNT {
+            positions[index] = position_rng.random_range(0..oram.max_n) as u32;
+            value_rng.fill(&mut values[index]);
+          }
+
+          oram.update(0, 0, 0, |value| *value = [0; BIG_DATA_SIZE]);
+          oram.eviction_credit = 0;
+          let mut current_pos = 0;
+          let mut update_index = 0;
+          let mut phase = 0;
+
+          b.iter(|| {
+            if phase == 0 {
+              oram.eviction_credit = 16 - 3 * $gap;
+            }
+            let new_pos = positions[update_index];
+            let replacement = values[update_index];
+            let (_, old) =
+              oram.update(black_box(current_pos), black_box(new_pos), black_box(0), |value| {
+                let old = *value;
+                *value = replacement;
+                old
+              });
+            current_pos = new_pos;
+            update_index = (update_index + 1) & (UPDATE_COUNT - 1);
+            phase += 1;
+            if phase == $gap {
+              phase = 0;
+            }
+            black_box(old);
+          });
+        });
+      };
+    }
+
     group.bench_with_input(BenchmarkId::new("CircuitORAM_32B", log_n), &size, |b, &size| {
       let mut position_rng = StdRng::seed_from_u64(log_n as u64);
       let mut value_rng = StdRng::seed_from_u64(0x1000 + log_n as u64);
@@ -150,20 +201,21 @@ pub fn benchmark_random_oram_updates<T: Measurement + 'static>(c: &mut Criterion
     });
 
     group.bench_with_input(
-      BenchmarkId::new("OptimizedCircuitORAM_24B_2Lane", log_n),
+      BenchmarkId::new("OptimizedCircuitORAM_24B_P8_S2", log_n),
       &size,
       |b, &size| {
         let mut position_rng = StdRng::seed_from_u64(log_n as u64);
         let mut value_rng = StdRng::seed_from_u64(0x1000 + log_n as u64);
+
+        let mut oram = OptimizedCircuitORAM::new(size);
         let mut positions = vec![0u32; UPDATE_COUNT];
         let mut values = vec![[0u8; DATA_SIZE]; UPDATE_COUNT];
         for index in 0..UPDATE_COUNT {
-          positions[index] = position_rng.random_range(0..size) as u32;
+          positions[index] = position_rng.random_range(0..oram.max_n) as u32;
           value_rng.fill(&mut values[index]);
         }
 
-        let mut oram = OptimizedCircuitORAM::new(size);
-        oram.write_or_insert(0, 0, 0, [0; DATA_SIZE]);
+        oram.update(0, 0, 0, |value| *value = [0; DATA_SIZE]);
         let mut current_pos = 0;
         let mut update_index = 0;
 
@@ -182,6 +234,51 @@ pub fn benchmark_random_oram_updates<T: Measurement + 'static>(c: &mut Criterion
         });
       },
     );
+
+    group.bench_with_input(
+      BenchmarkId::new("BigKvOptimizedCircuitORAM_24B_U64_S40_G4", log_n),
+      &size,
+      |b, &size| {
+        let mut position_rng = StdRng::seed_from_u64(log_n as u64);
+        let mut value_rng = StdRng::seed_from_u64(0x4000 + log_n as u64);
+        let mut oram = BigKvOptimizedCircuitOram::new(size);
+        let mut positions = vec![0u64; UPDATE_COUNT];
+        let mut values = vec![[0u8; BIG_KV_DATA_SIZE]; UPDATE_COUNT];
+        for index in 0..UPDATE_COUNT {
+          positions[index] = position_rng.random_range(0..oram.max_n) as u64;
+          value_rng.fill(&mut values[index]);
+        }
+
+        oram.update(0, 0, 0, |value| *value = [0; BIG_KV_DATA_SIZE]);
+        oram.eviction_credit = 4;
+        let mut current_pos = 0;
+        let mut update_index = 0;
+        let mut phase = 0;
+
+        b.iter(|| {
+          if phase == 0 {
+            oram.eviction_credit = 4;
+          }
+          let new_pos = positions[update_index];
+          let replacement = values[update_index];
+          let (_, old) =
+            oram.update(black_box(current_pos), black_box(new_pos), black_box(0), |value| {
+              let old = *value;
+              *value = replacement;
+              old
+            });
+          current_pos = new_pos;
+          update_index = (update_index + 1) & (UPDATE_COUNT - 1);
+          phase = (phase + 1) & 3;
+          black_box(old);
+        });
+      },
+    );
+
+    bench_big_values!("OptimizedCircuitORAM_56B_S40_G4", 40, 4);
+    bench_big_values!("OptimizedCircuitORAM_56B_S56_G5", 56, 5);
+    bench_big_values!("OptimizedCircuitORAM_56B_S50_G4", 50, 4);
+    bench_big_values!("OptimizedCircuitORAM_56B_S80_G5", 80, 5);
 
     group.bench_with_input(BenchmarkId::new("LaneORAM_56B_Z3", log_n), &size, |b, &size| {
       let mut position_rng = StdRng::seed_from_u64(log_n as u64);

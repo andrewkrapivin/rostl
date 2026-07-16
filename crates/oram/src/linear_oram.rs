@@ -108,6 +108,7 @@ where
   }
   ///linear scan the entire array, move the element out when index matches
   pub fn read(&self, index: K, ret: &mut T) {
+    let index = index as usize;
     debug_assert!(index < self.data.len());
     for i in 0..self.data.len() {
       let choice = i == index;
@@ -116,6 +117,7 @@ where
   }
   ///linear scan the entire array, write to the index if the index matches
   pub fn write(&mut self, index: K, value: T) {
+    let index = index as usize;
     for i in 0..self.data.len() {
       let choice = i == index;
       self.data[i].cmov(&value, choice);
@@ -124,7 +126,7 @@ where
 
   ///linear scan the entire array, read the element out when index matches, write to the index if the index matches
   pub fn read_update(&mut self, index: K, value: T, ret: &mut T) {
-    oblivious_read_update_index(&mut self.data, index, ret, value);
+    oblivious_read_update_index(&mut self.data, index as usize, ret, value);
   }
 
   #[cfg(test)]

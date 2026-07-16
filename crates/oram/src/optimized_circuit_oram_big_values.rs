@@ -1,4 +1,4 @@
-//! Implementation of [Optimized Circuit ORAM](https://eprint.iacr.org/2014/672.pdf)
+//! Optimized Circuit ORAM for 56-byte payloads and exact cache-line-sized blocks.
 //!
 #![allow(clippy::needless_bitwise_bool)]
 
@@ -7,12 +7,11 @@ use bytemuck::{Pod, Zeroable};
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 use core::arch::x86_64::{
   __m256i, __m512i, __mmask16, __mmask8, _mm256_add_epi32, _mm256_and_si256,
-  _mm256_cmpeq_epi32_mask, _mm256_cmpgt_epi32_mask, _mm256_load_si256, _mm256_mask_mov_epi32,
-  _mm256_set1_epi32, _mm256_setr_epi32, _mm256_setzero_si256, _mm256_store_si256, _mm256_sub_epi32,
-  _mm256_xor_si256, _mm512_and_si512, _mm512_castsi512_si256, _mm512_cmpeq_epi32_mask,
-  _mm512_extracti64x4_epi64, _mm512_i32gather_epi32, _mm512_load_si512,
-  _mm512_mask_i32gather_epi32, _mm512_mask_mov_epi32, _mm512_permutexvar_epi32,
-  _mm512_reduce_max_epi32, _mm512_set1_epi32, _mm512_shuffle_i64x2, _mm512_store_si512,
+  _mm256_cmpeq_epi32_mask, _mm256_cmpgt_epi32_mask, _mm256_mask_mov_epi32, _mm256_set1_epi32,
+  _mm256_setr_epi32, _mm256_setzero_si256, _mm256_sub_epi32, _mm256_xor_si256, _mm512_and_si512,
+  _mm512_castsi512_si256, _mm512_cmpeq_epi32_mask, _mm512_extracti64x4_epi64,
+  _mm512_i32gather_epi32, _mm512_load_si512, _mm512_mask_i32gather_epi32, _mm512_mask_mov_epi32,
+  _mm512_permutexvar_epi32, _mm512_reduce_max_epi32, _mm512_set1_epi32, _mm512_store_si512,
   _mm512_sub_epi32, _mm512_xor_si512,
 };
 #[cfg(all(
@@ -44,27 +43,26 @@ pub const EVICTIONS_PER_OP_DENOMINATOR: usize = 1;
 const EVICTIONS_PER_BATCH: usize = BLOCKS_PER_BUCKET;
 const EVICTION_CREDITS_PER_BATCH: usize = EVICTIONS_PER_BATCH * EVICTIONS_PER_OP_DENOMINATOR;
 /// Bytes stored in each block.
-pub const DATA_SIZE: usize = 24;
+pub const DATA_SIZE: usize = 56;
 /// Compact key stored alongside the position.
 /// `Key::MAX` is reserved for dummy blocks.
 pub type Key = u32;
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
-const KEY_BROADCAST_INDICES: __m512i =
-  unsafe { std::mem::transmute([1u32, 1, 1, 1, 1, 1, 1, 1, 9, 9, 9, 9, 9, 9, 9, 9]) };
+const KEY_BROADCAST_INDICES: __m512i = unsafe { std::mem::transmute([1u32; 16]) };
 /// Dword offsets of each block position, grouped by slot within a pooled lane.
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 const LEVEL_POSITION_GATHER_INDICES: __m512i = unsafe {
-  std::mem::transmute([0i32, 16, 32, 48, 64, 80, 96, 112, 8, 24, 40, 56, 72, 88, 104, 120])
+  std::mem::transmute([0i32, 32, 64, 96, 128, 160, 192, 224, 16, 48, 80, 112, 144, 176, 208, 240])
 };
 /// Dword offsets of the position and key fields in sixteen consecutive blocks.
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 const BLOCK_POSITION_GATHER_INDICES: __m512i = unsafe {
-  std::mem::transmute([0i32, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120])
+  std::mem::transmute([0i32, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240])
 };
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 const BLOCK_KEY_GATHER_INDICES: __m512i = unsafe {
-  std::mem::transmute([1i32, 9, 17, 25, 33, 41, 49, 57, 65, 73, 81, 89, 97, 105, 113, 121])
+  std::mem::transmute([1i32, 17, 33, 49, 65, 81, 97, 113, 129, 145, 161, 177, 193, 209, 225, 241])
 };
 
 /// A block in the ORAM tree
@@ -75,8 +73,8 @@ const BLOCK_KEY_GATHER_INDICES: __m512i = unsafe {
 /// # Note
 /// * It is wrong to assume anything about the block being empty or not based on the key, please use pos.
 ///
-#[repr(C, align(32))]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+#[repr(C, align(64))]
+#[derive(Clone, Copy, Debug)]
 pub struct Block {
   /// The position of the block.
   pub pos: PositionType,
@@ -85,6 +83,11 @@ pub struct Block {
   /// The data stored in the block.
   pub data: [u8; DATA_SIZE],
 }
+
+// SAFETY: The asserted field offsets and total size below prove that Block is
+// exactly its three plain-data fields with no uninitialized padding bytes.
+unsafe impl Zeroable for Block {}
+unsafe impl Pod for Block {}
 
 impl Default for Block {
   fn default() -> Self {
@@ -101,18 +104,18 @@ impl Block {
   }
 }
 
-const _: () = assert!(std::mem::size_of::<Block>() == 32);
-const _: () = assert!(std::mem::align_of::<Block>() == 32);
+const _: () = assert!(std::mem::size_of::<Block>() == 64);
+const _: () = assert!(std::mem::align_of::<Block>() == 64);
 const _: () = assert!(std::mem::offset_of!(Block, pos) == 0);
 const _: () = assert!(std::mem::offset_of!(Block, key) == 4);
 const _: () = assert!(std::mem::offset_of!(Block, data) == 8);
 
-/// A two-block pooled lane, exactly one cache line.
+/// A two-block pooled lane occupying two cache lines.
 #[repr(C, align(64))]
 #[derive(Debug, Default, Clone, Copy, Pod, Zeroable)]
 struct PooledLane([Block; SLOTS_PER_POOLED_LANE]);
 
-const _: () = assert!(std::mem::size_of::<PooledLane>() == 64);
+const _: () = assert!(std::mem::size_of::<PooledLane>() == 128);
 const _: () = assert!(std::mem::align_of::<PooledLane>() == 64);
 
 /// A wide tree bucket containing sixteen independently addressed slots.
@@ -120,7 +123,7 @@ const _: () = assert!(std::mem::align_of::<PooledLane>() == 64);
 #[derive(Debug, Default, Clone, Copy, Pod, Zeroable)]
 pub struct Bucket([Block; BLOCKS_PER_BUCKET]);
 
-const _: () = assert!(std::mem::size_of::<Bucket>() == BLOCKS_PER_BUCKET * 32);
+const _: () = assert!(std::mem::size_of::<Bucket>() == BLOCKS_PER_BUCKET * 64);
 const _: () = assert!(std::mem::align_of::<Bucket>() == 64);
 
 #[cfg(all(
@@ -190,7 +193,11 @@ fn legal_depths_512(positions: __m512i, path: PositionType) -> __m512i {
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vpopcntdq"))]
 #[inline(always)]
-fn find_root_source(stash: &AlignedStash, path: PositionType, pooled_lane: usize) -> (i32, i32) {
+fn find_root_source<const STASH_SIZE: usize>(
+  stash: &AlignedStash,
+  path: PositionType,
+  pooled_lane: usize,
+) -> (i32, i32) {
   unsafe {
     let no_source = _mm512_set1_epi32(-1);
     let desired_lane = _mm512_set1_epi32(pooled_lane as i32);
@@ -198,17 +205,22 @@ fn find_root_source(stash: &AlignedStash, path: PositionType, pooled_lane: usize
     let mut best_depth = -1i32;
     let mut best_index = 0i32;
 
-    // Fifty stash blocks plus the two root slots occupy four fixed groups.
-    // The final gather mask excludes the rest of the path scratch space.
-    for group in 0..4 {
-      let valid: __mmask16 = if group == 3 { 0x000f } else { 0xffff };
+    let scanned_blocks = STASH_SIZE + SLOTS_PER_POOLED_LANE;
+    for group in 0..scanned_blocks.div_ceil(16) {
+      let remaining = scanned_blocks - group * 16;
+      let valid: __mmask16 = if remaining >= 16 { 0xffff } else { (1u16 << remaining) - 1 };
       let base = stash.as_ptr().add(group * 16).cast::<i32>();
       let positions =
         _mm512_mask_i32gather_epi32::<4>(no_source, valid, BLOCK_POSITION_GATHER_INDICES, base);
       let keys = _mm512_mask_i32gather_epi32::<4>(no_source, valid, BLOCK_KEY_GATHER_INDICES, base);
       let belongs_to_lane =
         _mm512_cmpeq_epi32_mask(_mm512_and_si512(keys, lane_mask), desired_lane);
-      let root_slots = if group == 3 { 0x000c } else { 0 };
+      let mut root_slots = 0u16;
+      for root_slot in STASH_SIZE..scanned_blocks {
+        if root_slot / 16 == group {
+          root_slots |= 1 << (root_slot % 16);
+        }
+      }
       let nonempty = !_mm512_cmpeq_epi32_mask(positions, no_source);
       let eligible = valid & nonempty & (belongs_to_lane | root_slots);
       let depths = _mm512_mask_mov_epi32(no_source, eligible, legal_depths_512(positions, path));
@@ -251,16 +263,16 @@ fn prepare_level_metadata(bucket: &Bucket, path: PositionType) -> LevelMetadata 
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl"))]
 #[inline(always)]
-fn swap_register_with_block(mut held: __m256i, block: &mut Block, choice: bool) -> __m256i {
-  // SAFETY: Block is exactly 32 bytes and 32-byte aligned. The held value stays
+fn swap_register_with_block(mut held: __m512i, block: &mut Block, choice: bool) -> __m512i {
+  // SAFETY: Block is exactly 64 bytes and 64-byte aligned. The held value stays
   // in vector form; only the scanned tree block is loaded and stored.
   unsafe {
-    let mask = 0u8.wrapping_sub(choice as u8);
-    let block_ptr = (block as *mut Block).cast::<__m256i>();
-    let old_block = _mm256_load_si256(block_ptr);
-    let new_block = _mm256_mask_mov_epi32(old_block, mask, held);
-    held = _mm256_mask_mov_epi32(held, mask, old_block);
-    _mm256_store_si256(block_ptr, new_block);
+    let mask = 0u16.wrapping_sub(choice as u16);
+    let block_ptr = (block as *mut Block).cast::<__m512i>();
+    let old_block = _mm512_load_si512(block_ptr);
+    let new_block = _mm512_mask_mov_epi32(old_block, mask, held);
+    held = _mm512_mask_mov_epi32(held, mask, old_block);
+    _mm512_store_si512(block_ptr, new_block);
     held
   }
 }
@@ -321,7 +333,7 @@ impl HeapTree<Bucket> {
 
 /// Circuit ORAMs packed into sixteen-slot buckets with one shared stash.
 #[derive(Debug)]
-pub struct OptimizedCircuitORAM {
+pub struct OptimizedCircuitORAMBigValuesWithStash<const STASH_SIZE: usize> {
   /// Requested total logical capacity across all pooled-lane ORAMs.
   pub capacity: usize,
   /// Leaf count and valid position range for each pooled-lane ORAM.
@@ -342,35 +354,31 @@ pub struct OptimizedCircuitORAM {
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 fn read_and_remove_element(arr: &mut AlignedStash, k: Key) -> Block {
   let mut found_mask = 0u16;
-  // SAFETY: AVX-512F is enabled. Each chunk contains two contiguous blocks.
-  // AlignedStash guarantees every two-block chunk starts at a 64-byte boundary.
+  // SAFETY: AVX-512F is enabled and every Block is exactly 64-byte aligned.
   let result = unsafe {
     let desired_key = _mm512_set1_epi32(k as i32);
     let dummy = _mm512_set1_epi32(-1);
     let mut held = dummy;
 
-    for bucket in &mut arr.0 {
-      let bucket_ptr = bucket as *mut PooledLane as *mut __m512i;
-      let value = _mm512_load_si512(bucket_ptr);
+    for block in arr.iter_mut() {
+      let block_ptr = (block as *mut Block).cast::<__m512i>();
+      let value = _mm512_load_si512(block_ptr);
       let keys = _mm512_permutexvar_epi32(KEY_BROADCAST_INDICES, value);
       let matched = _mm512_cmpeq_epi32_mask(keys, desired_key);
 
       debug_assert!((found_mask == 0) | (matched == 0));
       let old_held = held;
       held = _mm512_mask_mov_epi32(held, matched, value);
-      _mm512_store_si512(bucket_ptr, _mm512_mask_mov_epi32(value, matched, old_held));
+      _mm512_store_si512(block_ptr, _mm512_mask_mov_epi32(value, matched, old_held));
       found_mask |= matched;
     }
-
-    let low = _mm512_castsi512_si256(held);
-    let high = _mm512_extracti64x4_epi64::<1>(held);
-    _mm256_and_si256(low, high)
+    held
   };
 
   let mut result_block = Block::default();
-  // SAFETY: Block is exactly 32 bytes and aligned to 32 bytes.
+  // SAFETY: Block is exactly 64 bytes and aligned to 64 bytes.
   unsafe {
-    _mm256_store_si256(&mut result_block as *mut Block as *mut _, result);
+    _mm512_store_si512((&mut result_block as *mut Block).cast::<__m512i>(), result);
   }
   result_block
 }
@@ -421,14 +429,23 @@ const fn pooled_lane_for_key(key: Key) -> usize {
   (key as usize) & (POOLED_LANES - 1)
 }
 
-impl OptimizedCircuitORAM {
-  /// Creates a new empty `OptimizedCircuitORAM` instance with the given maximum number of blocks.
+/// Big-value optimized Circuit ORAM with the default 50-block stash.
+pub type OptimizedCircuitORAMBigValues = OptimizedCircuitORAMBigValuesWithStash<S>;
+/// Big-value optimized Circuit ORAM with a 40-block stash.
+pub type OptimizedCircuitORAMBigValuesS40 = OptimizedCircuitORAMBigValuesWithStash<40>;
+/// Big-value optimized Circuit ORAM with a 56-block stash.
+pub type OptimizedCircuitORAMBigValuesS56 = OptimizedCircuitORAMBigValuesWithStash<56>;
+/// Big-value optimized Circuit ORAM with an 80-block stash.
+pub type OptimizedCircuitORAMBigValuesS80 = OptimizedCircuitORAMBigValuesWithStash<80>;
+
+impl<const STASH_SIZE: usize> OptimizedCircuitORAMBigValuesWithStash<STASH_SIZE> {
+  /// Creates a new empty big-value optimized Circuit ORAM with the given capacity.
   ///
   /// # Arguments
   /// * `max_n` - The maximum number of blocks in the ORAM.
   ///
   /// # Returns
-  /// A new instance of `OptimizedCircuitORAM`.
+  /// A new instance of `OptimizedCircuitORAMBigValues`.
   ///
   /// # Preconditions
   /// * `0 < max_n < (2**33)`
@@ -447,7 +464,9 @@ impl OptimizedCircuitORAM {
     let max_n = blocks_per_lane.max(2).next_power_of_two();
     let h = max_n.ilog2() as usize + 1;
     let tree = HeapTree::new(h);
-    let stash = AlignedStash::new(S + h * SLOTS_PER_POOLED_LANE);
+    debug_assert!(STASH_SIZE > 0);
+    debug_assert_eq!(STASH_SIZE % SLOTS_PER_POOLED_LANE, 0);
+    let stash = AlignedStash::new(STASH_SIZE + h * SLOTS_PER_POOLED_LANE);
 
     Self { capacity, max_n, h, stash, tree, evict_counter: 0, eviction_credit: 0 }
   }
@@ -459,14 +478,18 @@ impl OptimizedCircuitORAM {
     self.tree.read_lane_path(
       pos,
       pooled_lane,
-      &mut self.stash[S..S + self.h * SLOTS_PER_POOLED_LANE],
+      &mut self.stash[STASH_SIZE..STASH_SIZE + self.h * SLOTS_PER_POOLED_LANE],
     );
   }
 
   /// Writes one two-slot pooled lane from the scratch tail back to the tree.
   fn write_back_path(&mut self, pos: PositionType, pooled_lane: usize) {
     debug_assert!((pos as usize) < self.max_n);
-    self.tree.write_lane_path(pos, pooled_lane, &self.stash[S..S + self.h * SLOTS_PER_POOLED_LANE]);
+    self.tree.write_lane_path(
+      pos,
+      pooled_lane,
+      &self.stash[STASH_SIZE..STASH_SIZE + self.h * SLOTS_PER_POOLED_LANE],
+    );
   }
 
   /// Alg. 4 - EvictOnceFast(path) in `OptimizedCircuitORAM` paper
@@ -492,7 +515,7 @@ impl OptimizedCircuitORAM {
       target_feature = "avx512vpopcntdq"
     ))]
     {
-      (dst, deepest_idx[0]) = find_root_source(&self.stash, pos, pooled_lane);
+      (dst, deepest_idx[0]) = find_root_source::<STASH_SIZE>(&self.stash, pos, pooled_lane);
     }
     #[cfg(not(all(
       target_arch = "x86_64",
@@ -501,10 +524,10 @@ impl OptimizedCircuitORAM {
     )))]
     {
       dst = -1;
-      for idx in 0..S + SLOTS_PER_POOLED_LANE {
+      for idx in 0..STASH_SIZE + SLOTS_PER_POOLED_LANE {
         let deepest_level = common_suffix_length(self.stash[idx].pos, pos) as i32;
         let belongs_to_lane =
-          (idx >= S) | (pooled_lane_for_key(self.stash[idx].key) == pooled_lane);
+          (idx >= STASH_SIZE) | (pooled_lane_for_key(self.stash[idx].key) == pooled_lane);
         let deeper_flag = (!self.stash[idx].is_empty()) & belongs_to_lane & (deepest_level > dst);
         dst.cmov(&deepest_level, deeper_flag);
         deepest_idx[0].cmov(&(idx as i32), deeper_flag);
@@ -512,7 +535,7 @@ impl OptimizedCircuitORAM {
     }
     src.cmov(&0, dst != -1);
 
-    let mut idx = S + SLOTS_PER_POOLED_LANE;
+    let mut idx = STASH_SIZE + SLOTS_PER_POOLED_LANE;
     // Remaining levels:
     //
     for i in 1..self.h {
@@ -554,14 +577,14 @@ impl OptimizedCircuitORAM {
     //
     // First level (including the stash)
     #[cfg(all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl"))]
-    let mut hold = unsafe { _mm256_set1_epi32(-1) };
+    let mut hold = unsafe { _mm512_set1_epi32(-1) };
     #[cfg(not(all(
       target_arch = "x86_64",
       target_feature = "avx512f",
       target_feature = "avx512vl"
     )))]
     let mut hold = Block::default();
-    for idx in 0..S + SLOTS_PER_POOLED_LANE {
+    for idx in 0..STASH_SIZE + SLOTS_PER_POOLED_LANE {
       let is_deepest = deepest_idx[0] == idx as i32;
       let read_and_remove_flag = is_deepest & (target[0] != -1);
       #[cfg(all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl"))]
@@ -580,7 +603,7 @@ impl OptimizedCircuitORAM {
     dst = target[0];
 
     // Remaining levels except the last
-    let mut idx = S + SLOTS_PER_POOLED_LANE;
+    let mut idx = STASH_SIZE + SLOTS_PER_POOLED_LANE;
     for i in 1..(self.h - 1) {
       let has_target_flag = target[i] != -1;
       let place_dummy_flag = (i as i32 == dst) & (!has_target_flag);
@@ -679,7 +702,7 @@ impl OptimizedCircuitORAM {
       // exactly one vector lane, selected by key & (POOLED_LANES - 1).
       let mut dst = no_source;
       let mut root_source_vector = no_source;
-      for stash_index in 0..S {
+      for stash_index in 0..STASH_SIZE {
         let block = &self.stash[stash_index];
         let block_positions = _mm256_set1_epi32(block.pos as i32);
         let block_depth = legal_depths(block_positions, path);
@@ -699,7 +722,7 @@ impl OptimizedCircuitORAM {
       // stash-over-root ties and the metadata helper preserves slot-0 ties.
       let root_is_deeper = _mm256_cmpgt_epi32_mask(bucket_deepest[0], dst);
       let root_slot = _mm256_mask_mov_epi32(zero, source_slot_1[0], one);
-      let root_index = _mm256_add_epi32(_mm256_set1_epi32(S as i32), root_slot);
+      let root_index = _mm256_add_epi32(_mm256_set1_epi32(STASH_SIZE as i32), root_slot);
       root_source_vector = _mm256_mask_mov_epi32(root_source_vector, root_is_deeper, root_index);
       dst = _mm256_mask_mov_epi32(dst, root_is_deeper, bucket_deepest[0]);
 
@@ -754,92 +777,43 @@ impl OptimizedCircuitORAM {
     target_feature = "avx512vl",
     target_feature = "avx512vpopcntdq"
   ))]
-  fn remove_stash_sources_for_pair(
-    &mut self,
-    plan: &BatchEvictionPlan,
-    pooled_lane_0: usize,
-    pooled_lane_1: usize,
-  ) -> __m512i {
-    unsafe {
-      let dummy = _mm512_set1_epi32(-1);
-      let lane_0_has_target = plan.target[0][pooled_lane_0] != -1;
-      let lane_1_has_target = plan.target[0][pooled_lane_1] != -1;
-      let mut direct = dummy;
-
-      // First orientation: lane 0 searches each low half and lane 1 each high half.
-      for (stash_pair_index, stash_pair) in self.stash.0[..S / 2].iter_mut().enumerate() {
-        let low_index = stash_pair_index * 2;
-        let low_selected =
-          lane_0_has_target & (plan.root_source[pooled_lane_0] == low_index as i32);
-        let high_selected =
-          lane_1_has_target & (plan.root_source[pooled_lane_1] == (low_index + 1) as i32);
-        let mask = (0u16.wrapping_sub(low_selected as u16) & 0x00ff)
-          | (0u16.wrapping_sub(high_selected as u16) & 0xff00);
-        let stash_ptr = (stash_pair as *mut PooledLane).cast::<__m512i>();
-        let stash_value = _mm512_load_si512(stash_ptr);
-        let old_direct = direct;
-        direct = _mm512_mask_mov_epi32(direct, mask, stash_value);
-        _mm512_store_si512(stash_ptr, _mm512_mask_mov_epi32(stash_value, mask, old_direct));
-      }
-
-      let mut crossed = dummy;
-      // Second orientation: lane 1 searches low halves and lane 0 high halves.
-      for (stash_pair_index, stash_pair) in self.stash.0[..S / 2].iter_mut().enumerate() {
-        let low_index = stash_pair_index * 2;
-        let low_selected =
-          lane_1_has_target & (plan.root_source[pooled_lane_1] == low_index as i32);
-        let high_selected =
-          lane_0_has_target & (plan.root_source[pooled_lane_0] == (low_index + 1) as i32);
-        let mask = (0u16.wrapping_sub(low_selected as u16) & 0x00ff)
-          | (0u16.wrapping_sub(high_selected as u16) & 0xff00);
-        let stash_ptr = (stash_pair as *mut PooledLane).cast::<__m512i>();
-        let stash_value = _mm512_load_si512(stash_ptr);
-        let old_crossed = crossed;
-        crossed = _mm512_mask_mov_epi32(crossed, mask, stash_value);
-        _mm512_store_si512(stash_ptr, _mm512_mask_mov_epi32(stash_value, mask, old_crossed));
-      }
-
-      // Crossed currently holds [lane 1 | lane 0]. Swap its 256-bit halves;
-      // AND then selects the real block because every missing half is all ones.
-      let crossed = _mm512_shuffle_i64x2::<0x4e>(crossed, crossed);
-      _mm512_and_si512(direct, crossed)
-    }
-  }
-
-  #[cfg(all(
-    target_arch = "x86_64",
-    target_feature = "avx512f",
-    target_feature = "avx512vl",
-    target_feature = "avx512vpopcntdq"
-  ))]
   fn move_batch_breadth_first(&mut self, path: PositionType, plan: &BatchEvictionPlan) {
-    // Four paired stash searches produce eight named held-vector chains. Naming
-    // them explicitly avoids the indexed array that forced LLVM to spill them.
-    let held_01 = self.remove_stash_sources_for_pair(plan, 0, 1);
-    let held_23 = self.remove_stash_sources_for_pair(plan, 2, 3);
-    let held_45 = self.remove_stash_sources_for_pair(plan, 4, 5);
-    let held_67 = self.remove_stash_sources_for_pair(plan, 6, 7);
-    let (
-      mut held_0,
-      mut held_1,
-      mut held_2,
-      mut held_3,
-      mut held_4,
-      mut held_5,
-      mut held_6,
-      mut held_7,
-    ) = unsafe {
-      (
-        _mm512_castsi512_si256(held_01),
-        _mm512_extracti64x4_epi64::<1>(held_01),
-        _mm512_castsi512_si256(held_23),
-        _mm512_extracti64x4_epi64::<1>(held_23),
-        _mm512_castsi512_si256(held_45),
-        _mm512_extracti64x4_epi64::<1>(held_45),
-        _mm512_castsi512_si256(held_67),
-        _mm512_extracti64x4_epi64::<1>(held_67),
-      )
-    };
+    // Each 64-byte block occupies one AVX-512 register. Scan the stash once,
+    // routing the selected source into one of eight independent held chains.
+    let dummy = unsafe { _mm512_set1_epi32(-1) };
+    let mut held_0 = dummy;
+    let mut held_1 = dummy;
+    let mut held_2 = dummy;
+    let mut held_3 = dummy;
+    let mut held_4 = dummy;
+    let mut held_5 = dummy;
+    let mut held_6 = dummy;
+    let mut held_7 = dummy;
+
+    macro_rules! route_stash_source {
+      ($pooled_lane:literal, $held:ident, $stash_index:ident, $stash_value:ident) => {{
+        let selected = (plan.target[0][$pooled_lane] != -1)
+          & (plan.root_source[$pooled_lane] == $stash_index as i32);
+        let mask = 0u16.wrapping_sub(selected as u16);
+        let old_held = $held;
+        $held = unsafe { _mm512_mask_mov_epi32($held, mask, $stash_value) };
+        $stash_value = unsafe { _mm512_mask_mov_epi32($stash_value, mask, old_held) };
+      }};
+    }
+
+    for stash_index in 0..STASH_SIZE {
+      let stash_ptr = (&mut self.stash[stash_index] as *mut Block).cast::<__m512i>();
+      let mut stash_value = unsafe { _mm512_load_si512(stash_ptr) };
+      route_stash_source!(0, held_0, stash_index, stash_value);
+      route_stash_source!(1, held_1, stash_index, stash_value);
+      route_stash_source!(2, held_2, stash_index, stash_value);
+      route_stash_source!(3, held_3, stash_index, stash_value);
+      route_stash_source!(4, held_4, stash_index, stash_value);
+      route_stash_source!(5, held_5, stash_index, stash_value);
+      route_stash_source!(6, held_6, stash_index, stash_value);
+      route_stash_source!(7, held_7, stash_index, stash_value);
+      unsafe { _mm512_store_si512(stash_ptr, stash_value) };
+    }
 
     // A pooled lane whose level-0 source is in the root still holds dummy here.
     // Both root slots are scanned regardless of the secret source selector.
@@ -848,7 +822,8 @@ impl OptimizedCircuitORAM {
       ($pooled_lane:literal, $held:ident) => {{
         let has_target = plan.target[0][$pooled_lane] != -1;
         for slot in 0..SLOTS_PER_POOLED_LANE {
-          let selected = has_target & (plan.root_source[$pooled_lane] == (S + slot) as i32);
+          let selected =
+            has_target & (plan.root_source[$pooled_lane] == (STASH_SIZE + slot) as i32);
           let block_index = $pooled_lane * SLOTS_PER_POOLED_LANE + slot;
           $held = swap_register_with_block($held, &mut root.0[block_index], selected);
         }
@@ -916,18 +891,18 @@ impl OptimizedCircuitORAM {
       move_lane_at_depth!(7, held_7, destination_7, depth, bucket);
     }
 
-    let dummy = unsafe { _mm256_set1_epi32(-1) };
+    let dummy = unsafe { _mm512_set1_epi32(-1) };
     let all_held_blocks_are_dummy = unsafe {
-      _mm256_cmpeq_epi32_mask(held_0, dummy)
-        & _mm256_cmpeq_epi32_mask(held_1, dummy)
-        & _mm256_cmpeq_epi32_mask(held_2, dummy)
-        & _mm256_cmpeq_epi32_mask(held_3, dummy)
-        & _mm256_cmpeq_epi32_mask(held_4, dummy)
-        & _mm256_cmpeq_epi32_mask(held_5, dummy)
-        & _mm256_cmpeq_epi32_mask(held_6, dummy)
-        & _mm256_cmpeq_epi32_mask(held_7, dummy)
+      _mm512_cmpeq_epi32_mask(held_0, dummy)
+        & _mm512_cmpeq_epi32_mask(held_1, dummy)
+        & _mm512_cmpeq_epi32_mask(held_2, dummy)
+        & _mm512_cmpeq_epi32_mask(held_3, dummy)
+        & _mm512_cmpeq_epi32_mask(held_4, dummy)
+        & _mm512_cmpeq_epi32_mask(held_5, dummy)
+        & _mm512_cmpeq_epi32_mask(held_6, dummy)
+        & _mm512_cmpeq_epi32_mask(held_7, dummy)
     };
-    debug_assert_eq!(all_held_blocks_are_dummy, 0xff);
+    debug_assert_eq!(all_held_blocks_are_dummy, 0xffff);
   }
 
   // Reads one pooled lane on a path, evicts it, and writes it back.
@@ -968,6 +943,11 @@ impl OptimizedCircuitORAM {
     self.evict_counter = (self.evict_counter + 1) % (self.max_n as PositionType);
   }
 
+  #[doc(hidden)]
+  pub fn benchmark_deterministic_eviction_batch(&mut self) {
+    self.perform_deterministic_eviction_batch();
+  }
+
   /// Updates a value in the ORAM using a provided update function.
   /// If the element is not in the ORAM, the update function receives the all-ones dummy payload before insertion.
   /// # Arguments
@@ -1002,7 +982,7 @@ impl OptimizedCircuitORAM {
     block.pos = new_pos;
     block.key = key;
 
-    let inserted = write_block_to_empty_slot(&mut self.stash[..S], &block);
+    let inserted = write_block_to_empty_slot(&mut self.stash[..STASH_SIZE], &block);
     debug_assert!(inserted); // Succeeds due to Inv1.
 
     self.evict_once_fast(pos, pooled_lane);
@@ -1060,44 +1040,6 @@ mod tests {
       assert_eq!(actual.pos, expected.pos);
       assert_eq!(actual.key, expected.key);
       assert_eq!(actual.data, expected.data);
-    }
-  }
-
-  #[cfg(all(
-    target_arch = "x86_64",
-    target_feature = "avx512f",
-    target_feature = "avx512vl",
-    target_feature = "avx512vpopcntdq"
-  ))]
-  #[test]
-  fn paired_stash_scan_handles_direct_and_crossed_half_orientations() {
-    for (lane_0_source, lane_1_source) in [(4usize, 7usize), (5usize, 6usize)] {
-      let mut oram = OptimizedCircuitORAM::new(64);
-      oram.stash[lane_0_source] = real_block(3, 0, 0xa0);
-      oram.stash[lane_1_source] = real_block(5, 1, 0xb1);
-
-      let mut target = [[-1; POOLED_LANES]; 64];
-      target[0][0] = 1;
-      target[0][1] = 1;
-      let mut root_source = [-1; POOLED_LANES];
-      root_source[0] = lane_0_source as i32;
-      root_source[1] = lane_1_source as i32;
-      let plan = BatchEvictionPlan {
-        root_source,
-        target,
-        source_slot_1: [0; 64],
-        empty_slot_0: [0; 64],
-        empty_slot_1: [0; 64],
-      };
-
-      let held = oram.remove_stash_sources_for_pair(&plan, 0, 1);
-      let held: PooledLane = unsafe { std::mem::transmute(held) };
-      assert_eq!(held.0[0].key, 0);
-      assert_eq!(held.0[0].data, [0xa0; DATA_SIZE]);
-      assert_eq!(held.0[1].key, 1);
-      assert_eq!(held.0[1].data, [0xb1; DATA_SIZE]);
-      assert_eq!(oram.stash[lane_0_source].key, Key::MAX);
-      assert_eq!(oram.stash[lane_1_source].key, Key::MAX);
     }
   }
 
@@ -1188,16 +1130,16 @@ mod tests {
           scalar_index.cmov(&(index as i32), replaces_best);
         }
 
-        assert_eq!(find_root_source(&stash, path, pooled_lane), (scalar_depth, scalar_index));
+        assert_eq!(find_root_source::<S>(&stash, path, pooled_lane), (scalar_depth, scalar_index));
       }
     }
   }
 
   #[test]
   fn wide_bucket_layout_and_lane_routing_are_exact() {
-    assert_eq!(std::mem::size_of::<Block>(), 32);
-    assert_eq!(std::mem::size_of::<PooledLane>(), 64);
-    assert_eq!(std::mem::size_of::<Bucket>(), 512);
+    assert_eq!(std::mem::size_of::<Block>(), 64);
+    assert_eq!(std::mem::size_of::<PooledLane>(), 128);
+    assert_eq!(std::mem::size_of::<Bucket>(), 1024);
     assert_eq!(std::mem::align_of::<Bucket>(), 64);
     for key in 0..32 {
       assert_eq!(pooled_lane_for_key(key), key as usize & 7);
@@ -1206,7 +1148,7 @@ mod tests {
 
   #[test]
   fn each_pooled_lane_has_n_over_eight_leaves_at_half_bottom_load() {
-    let oram = OptimizedCircuitORAM::new(1024);
+    let oram = OptimizedCircuitORAMBigValues::new(1024);
     assert_eq!(oram.max_n, 1024 / POOLED_LANES);
     assert_eq!(oram.h, 8);
     let bottom_slots_per_pooled_lane = oram.max_n * SLOTS_PER_POOLED_LANE;
@@ -1217,7 +1159,7 @@ mod tests {
 
   #[test]
   fn ordinary_update_touches_only_the_selected_pooled_lane_in_the_tree() {
-    let mut oram = OptimizedCircuitORAM::new(64);
+    let mut oram = OptimizedCircuitORAMBigValues::new(64);
     oram.update(0, 1, 0, |data| data.fill(0x2a));
 
     for bucket in &oram.tree.tree {
@@ -1237,8 +1179,8 @@ mod tests {
   ))]
   #[test]
   fn breadth_first_batch_matches_eight_scalar_evictions() {
-    let mut batched = OptimizedCircuitORAM::new(256);
-    let mut scalar = OptimizedCircuitORAM::new(256);
+    let mut batched = OptimizedCircuitORAMBigValues::new(256);
+    let mut scalar = OptimizedCircuitORAMBigValues::new(256);
 
     for key in 0..32 {
       let new_pos = ((key * 13 + 7) % batched.max_n) as PositionType;
@@ -1267,7 +1209,7 @@ mod tests {
 
   #[test]
   fn deterministic_evictions_run_as_one_all_lane_path_per_batch() {
-    let mut oram = OptimizedCircuitORAM::new(512);
+    let mut oram = OptimizedCircuitORAMBigValues::new(512);
     assert_eq!(oram.max_n, 64);
 
     let mut expected_credit = 0;
@@ -1288,7 +1230,7 @@ mod tests {
   #[test]
   fn updates_round_trip_across_all_pooled_lanes_and_batches() {
     const N: usize = 128;
-    let mut oram = OptimizedCircuitORAM::new(N);
+    let mut oram = OptimizedCircuitORAMBigValues::new(N);
     let mut positions = [0; 64];
 
     for key in 0..positions.len() {
@@ -1310,5 +1252,47 @@ mod tests {
       assert_eq!(stored, key as u64);
       positions[key] = new_pos;
     }
+  }
+
+  fn assert_stash_size_updates_round_trip<const STASH_SIZE: usize>() {
+    const N: usize = 128;
+    let mut oram = OptimizedCircuitORAMBigValuesWithStash::<STASH_SIZE>::new(N);
+    let mut positions = [0; 64];
+    assert_eq!(oram.stash.len(), STASH_SIZE + oram.h * SLOTS_PER_POOLED_LANE);
+
+    for key in 0..positions.len() {
+      let new_pos = ((key * 7 + 3) % oram.max_n) as PositionType;
+      let (found, ()) = oram.update(positions[key], new_pos, key as Key, |data| {
+        data.fill(0);
+        data[..8].copy_from_slice(&(key as u64).to_le_bytes());
+      });
+      assert!(!found);
+      positions[key] = new_pos;
+    }
+
+    for key in 0..positions.len() {
+      let new_pos = ((key * 11 + 5) % oram.max_n) as PositionType;
+      let (found, stored) = oram.update(positions[key], new_pos, key as Key, |data| {
+        u64::from_le_bytes(data[..8].try_into().unwrap())
+      });
+      assert!(found, "missing key {key}");
+      assert_eq!(stored, key as u64);
+      positions[key] = new_pos;
+    }
+  }
+
+  #[test]
+  fn stash_40_updates_round_trip_across_all_pooled_lanes() {
+    assert_stash_size_updates_round_trip::<40>();
+  }
+
+  #[test]
+  fn stash_56_updates_round_trip_across_all_pooled_lanes() {
+    assert_stash_size_updates_round_trip::<56>();
+  }
+
+  #[test]
+  fn stash_80_updates_round_trip_across_all_pooled_lanes() {
+    assert_stash_size_updates_round_trip::<80>();
   }
 }

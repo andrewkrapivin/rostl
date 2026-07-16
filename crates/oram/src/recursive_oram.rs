@@ -32,11 +32,11 @@ const LINEAR_MAP_SIZE: usize = LEVEL_0_BUCKETS * FAN_OUT;
 
 const_assert!(LINEAR_MAP_SIZE.is_power_of_two());
 const LEVEL0_BITS: usize = LINEAR_MAP_SIZE.ilog2() as usize;
-const MASK0: usize = LINEAR_MAP_SIZE - 1;
+const MASK0: K = (LINEAR_MAP_SIZE - 1) as K;
 
 const_assert!(FAN_OUT.is_power_of_two());
 const LEVELN_BITS: usize = FAN_OUT.ilog2() as usize;
-const MASKN: usize = FAN_OUT - 1;
+const MASKN: K = (FAN_OUT - 1) as K;
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -159,7 +159,12 @@ impl RecursivePositionMap {
     let level0_bucket_idx = curr_k >> LEVELN_BITS;
     let mut level0_bucket = InternalNode::default();
     self.linear_oram.read(level0_bucket_idx, &mut level0_bucket);
-    oblivious_read_update_index(&mut level0_bucket.0, curr_k & MASKN, &mut ret, new_curr_pos);
+    oblivious_read_update_index(
+      &mut level0_bucket.0,
+      (curr_k & MASKN) as usize,
+      &mut ret,
+      new_curr_pos,
+    );
     self.linear_oram.write(level0_bucket_idx, level0_bucket);
 
     // let mut pos = self.linear_oram.access_position(k, new_pos);
@@ -174,7 +179,7 @@ impl RecursivePositionMap {
       let (_found, nextpos) =
         self.recursive_orams[i].update(pos, new_curr_pos, curr_k, |node: &mut InternalNode| {
           let mut ret = DUMMY_POS;
-          oblivious_read_update_index(&mut node.0, mask, &mut ret, next_curr_pos);
+          oblivious_read_update_index(&mut node.0, mask as usize, &mut ret, next_curr_pos);
           ret
         });
       debug_assert!(_found);
@@ -210,10 +215,10 @@ mod tests {
     assert_eq!(pos_map.h, 0);
     assert_eq!(pos_map.linear_oram.data.len(), n.div_ceil(FAN_OUT));
     for i in 0..n {
-      pos_map.access_position(i, i as PositionType);
+      pos_map.access_position(i as K, i as PositionType);
     }
     for i in 0..n {
-      assert_eq!(pos_map.access_position(i, i as PositionType), i as PositionType);
+      assert_eq!(pos_map.access_position(i as K, i as PositionType), i as PositionType);
     }
   }
 
@@ -225,10 +230,10 @@ mod tests {
     assert_eq!(pos_map.linear_oram.data.len(), LEVEL_0_BUCKETS);
     pos_map.print_for_debug();
     for i in 0..n {
-      pos_map.access_position(i, i as PositionType);
+      pos_map.access_position(i as K, i as PositionType);
     }
     for i in 0..n {
-      assert_eq!(pos_map.access_position(i, i as PositionType), i as PositionType);
+      assert_eq!(pos_map.access_position(i as K, i as PositionType), i as PositionType);
     }
   }
 
@@ -241,7 +246,7 @@ mod tests {
     for _i in 0..2000 {
       let k = rng.random_range(0..TOTAL_KEYS);
       let new_pos = rng.random_range(0..TOTAL_KEYS as PositionType);
-      let old_pos = pos_map.access_position(k, new_pos);
+      let old_pos = pos_map.access_position(k as K, new_pos);
       if used[k] {
         assert_eq!(pmap[k], old_pos);
       }
