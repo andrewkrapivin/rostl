@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="790" viewBox="0 0 1500 790">
+<rect width="100%" height="100%" fill="white"/>
+<text x="750.0" y="43" font-family="sans-serif" text-anchor="middle" font-size="26" font-weight="bold">Low-load pre-batch stash tails</text>
+<text x="750.0" y="75" font-family="sans-serif" text-anchor="middle" font-size="15" fill="#444">X=16 = 8 pooled Y=2 ORAMs; 2²⁴ warm-up + 2²⁵ measured operations</text>
+<line x1="90.00" y1="120" x2="90.00" y2="690" stroke="#ededed"/>
+<text x="90.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">0</text>
+<line x1="141.67" y1="120" x2="141.67" y2="690" stroke="#ededed"/>
+<text x="141.66666666666666" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">2</text>
+<line x1="193.33" y1="120" x2="193.33" y2="690" stroke="#ededed"/>
+<text x="193.33333333333331" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">4</text>
+<line x1="245.00" y1="120" x2="245.00" y2="690" stroke="#ededed"/>
+<text x="245.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">6</text>
+<line x1="296.67" y1="120" x2="296.67" y2="690" stroke="#ededed"/>
+<text x="296.66666666666663" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">8</text>
+<line x1="348.33" y1="120" x2="348.33" y2="690" stroke="#ededed"/>
+<text x="348.33333333333337" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">10</text>
+<line x1="400.00" y1="120" x2="400.00" y2="690" stroke="#ededed"/>
+<text x="400.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">12</text>
+<line x1="451.67" y1="120" x2="451.67" y2="690" stroke="#ededed"/>
+<text x="451.6666666666667" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">14</text>
+<line x1="503.33" y1="120" x2="503.33" y2="690" stroke="#ededed"/>
+<text x="503.3333333333333" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">16</text>
+<line x1="555.00" y1="120" x2="555.00" y2="690" stroke="#ededed"/>
+<text x="555.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">18</text>
+<line x1="606.67" y1="120" x2="606.67" y2="690" stroke="#ededed"/>
+<text x="606.6666666666667" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">20</text>
+<line x1="658.33" y1="120" x2="658.33" y2="690" stroke="#ededed"/>
+<text x="658.3333333333333" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">22</text>
+<line x1="710.00" y1="120" x2="710.00" y2="690" stroke="#ededed"/>
+<text x="710.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">24</text>
+<line x1="90.0" y1="690.00" x2="710.0" y2="690.00" stroke="#ededed"/>
+<text x="80.0" y="694.0" font-family="sans-serif" text-anchor="end" font-size="11">0</text>
+<line x1="90.0" y1="595.00" x2="710.0" y2="595.00" stroke="#ededed"/>
+<text x="80.0" y="599.0" font-family="sans-serif" text-anchor="end" font-size="11">5</text>
+<line x1="90.0" y1="500.00" x2="710.0" y2="500.00" stroke="#ededed"/>
+<text x="80.0" y="504.0" font-family="sans-serif" text-anchor="end" font-size="11">10</text>
+<line x1="90.0" y1="405.00" x2="710.0" y2="405.00" stroke="#ededed"/>
+<text x="80.0" y="409.0" font-family="sans-serif" text-anchor="end" font-size="11">15</text>
+<line x1="90.0" y1="310.00" x2="710.0" y2="310.00" stroke="#ededed"/>
+<text x="80.0" y="314.0" font-family="sans-serif" text-anchor="end" font-size="11">20</text>
+<line x1="90.0" y1="215.00" x2="710.0" y2="215.00" stroke="#ededed"/>
+<text x="80.0" y="219.0" font-family="sans-serif" text-anchor="end" font-size="11">25</text>
+<line x1="90.0" y1="120.00" x2="710.0" y2="120.00" stroke="#ededed"/>
+<text x="80.0" y="124.0" font-family="sans-serif" text-anchor="end" font-size="11">30</text>
+<rect x="90.0" y="120" width="620.0" height="570" fill="none" stroke="#222"/>
+<text x="400.0" y="102" font-family="sans-serif" text-anchor="middle" font-size="18" font-weight="bold">gap 4 (E=2.0)</text>
+<line x1="790.00" y1="120" x2="790.00" y2="690" stroke="#ededed"/>
+<text x="790.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">0</text>
+<line x1="841.67" y1="120" x2="841.67" y2="690" stroke="#ededed"/>
+<text x="841.6666666666666" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">2</text>
+<line x1="893.33" y1="120" x2="893.33" y2="690" stroke="#ededed"/>
+<text x="893.3333333333334" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">4</text>
+<line x1="945.00" y1="120" x2="945.00" y2="690" stroke="#ededed"/>
+<text x="945.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">6</text>
+<line x1="996.67" y1="120" x2="996.67" y2="690" stroke="#ededed"/>
+<text x="996.6666666666666" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">8</text>
+<line x1="1048.33" y1="120" x2="1048.33" y2="690" stroke="#ededed"/>
+<text x="1048.3333333333335" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">10</text>
+<line x1="1100.00" y1="120" x2="1100.00" y2="690" stroke="#ededed"/>
+<text x="1100.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">12</text>
+<line x1="1151.67" y1="120" x2="1151.67" y2="690" stroke="#ededed"/>
+<text x="1151.6666666666667" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">14</text>
+<line x1="1203.33" y1="120" x2="1203.33" y2="690" stroke="#ededed"/>
+<text x="1203.3333333333333" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">16</text>
+<line x1="1255.00" y1="120" x2="1255.00" y2="690" stroke="#ededed"/>
+<text x="1255.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">18</text>
+<line x1="1306.67" y1="120" x2="1306.67" y2="690" stroke="#ededed"/>
+<text x="1306.6666666666667" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">20</text>
+<line x1="1358.33" y1="120" x2="1358.33" y2="690" stroke="#ededed"/>
+<text x="1358.3333333333333" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">22</text>
+<line x1="1410.00" y1="120" x2="1410.00" y2="690" stroke="#ededed"/>
+<text x="1410.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">24</text>
+<line x1="790.0" y1="690.00" x2="1410.0" y2="690.00" stroke="#ededed"/>
+<text x="780.0" y="694.0" font-family="sans-serif" text-anchor="end" font-size="11">0</text>
+<line x1="790.0" y1="595.00" x2="1410.0" y2="595.00" stroke="#ededed"/>
+<text x="780.0" y="599.0" font-family="sans-serif" text-anchor="end" font-size="11">5</text>
+<line x1="790.0" y1="500.00" x2="1410.0" y2="500.00" stroke="#ededed"/>
+<text x="780.0" y="504.0" font-family="sans-serif" text-anchor="end" font-size="11">10</text>
+<line x1="790.0" y1="405.00" x2="1410.0" y2="405.00" stroke="#ededed"/>
+<text x="780.0" y="409.0" font-family="sans-serif" text-anchor="end" font-size="11">15</text>
+<line x1="790.0" y1="310.00" x2="1410.0" y2="310.00" stroke="#ededed"/>
+<text x="780.0" y="314.0" font-family="sans-serif" text-anchor="end" font-size="11">20</text>
+<line x1="790.0" y1="215.00" x2="1410.0" y2="215.00" stroke="#ededed"/>
+<text x="780.0" y="219.0" font-family="sans-serif" text-anchor="end" font-size="11">25</text>
+<line x1="790.0" y1="120.00" x2="1410.0" y2="120.00" stroke="#ededed"/>
+<text x="780.0" y="124.0" font-family="sans-serif" text-anchor="end" font-size="11">30</text>
+<rect x="790.0" y="120" width="620.0" height="570" fill="none" stroke="#222"/>
+<text x="1100.0" y="102" font-family="sans-serif" text-anchor="middle" font-size="18" font-weight="bold">gap 5 (E=1.6)</text>
+<text x="750.0" y="759" font-family="sans-serif" text-anchor="middle" font-size="18">log₂(1 / Pr[pre-batch stash &gt; R])</text>
+<text x="25" y="405.0" font-family="sans-serif" text-anchor="middle" font-size="18" transform="rotate(-90 25 405.0)">Pre-batch stash threshold R (blocks)</text>
+<line x1="529.17" y1="120" x2="529.17" y2="690" stroke="#555" stroke-width="1.2" stroke-dasharray="3 5"/>
+<text x="524.1666666666667" y="138" font-family="sans-serif" text-anchor="end" font-size="10" fill="#555">64 events</text>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="90.00,671.00 90.06,652.00 90.70,633.00 93.98,614.00 103.31,595.00 121.40,576.00 149.08,557.00 185.43,538.00 228.47,519.00 276.20,500.00 327.21,481.00 380.65,462.00 433.89,443.00 487.84,424.00"/>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.7" stroke-dasharray="6 5" points="487.84,424.00 543.99,405.00 611.64,386.00 658.33,367.00 684.17,348.00"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="90.00,671.00 90.06,652.00 90.70,633.00 93.99,614.00 103.31,595.00 121.44,576.00 149.17,557.00 185.64,538.00 229.02,519.00 277.51,500.00 329.76,481.00 384.86,462.00 441.04,443.00 496.68,424.00"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.7" stroke-dasharray="6 5" points="496.68,424.00 562.74,405.00 658.33,386.00"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="90.00,690.00 90.00,671.00 90.06,652.00 90.70,633.00 93.97,614.00 103.30,595.00 121.43,576.00 149.19,557.00 185.66,538.00 228.96,519.00 277.58,500.00 329.69,481.00 383.80,462.00 440.28,443.00 491.89,424.00"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.7" stroke-dasharray="6 5" points="491.89,424.00 549.59,405.00 606.67,386.00 643.22,367.00"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="90.00,690.00 90.00,671.00 90.06,652.00 90.70,633.00 93.98,614.00 103.30,595.00 121.38,576.00 149.09,557.00 185.45,538.00 228.70,519.00 277.29,500.00 329.17,481.00 383.48,462.00 440.93,443.00 501.07,424.00"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.7" stroke-dasharray="6 5" points="501.07,424.00 574.43,405.00 658.33,386.00"/>
+<line x1="1220.85" y1="120" x2="1220.85" y2="690" stroke="#555" stroke-width="1.2" stroke-dasharray="3 5"/>
+<text x="1215.8501886606339" y="138" font-family="sans-serif" text-anchor="end" font-size="10" fill="#555">64 events</text>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="790.00,671.00 790.00,652.00 790.04,633.00 790.38,614.00 791.98,595.00 796.58,576.00 805.97,557.00 821.06,538.00 841.79,519.00 867.48,500.00 897.08,481.00 929.55,462.00 964.29,443.00 1000.65,424.00 1038.48,405.00 1076.91,386.00 1117.66,367.00 1160.17,348.00 1206.13,329.00"/>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.7" stroke-dasharray="6 5" points="1206.13,329.00 1244.42,310.00 1274.92,291.00 1303.33,272.00 1334.91,253.00 1375.85,234.00"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="790.00,671.00 790.00,652.00 790.04,633.00 790.38,614.00 791.99,595.00 796.60,576.00 806.01,557.00 821.11,538.00 841.90,519.00 867.72,500.00 897.57,481.00 930.59,462.00 966.04,443.00 1003.25,424.00 1041.33,405.00 1080.17,386.00 1119.34,367.00 1155.46,348.00 1198.69,329.00"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.7" stroke-dasharray="6 5" points="1198.69,329.00 1241.27,310.00 1283.24,291.00 1324.18,272.00"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="790.00,671.00 790.00,652.00 790.04,633.00 790.38,614.00 791.98,595.00 796.58,576.00 805.95,557.00 821.07,538.00 841.85,519.00 867.56,500.00 897.36,481.00 930.11,462.00 965.04,443.00 1001.32,424.00 1038.69,405.00 1075.92,386.00 1113.65,367.00 1147.91,348.00 1186.24,329.00"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.7" stroke-dasharray="6 5" points="1186.24,329.00 1227.18,310.00 1274.92,291.00 1315.87,272.00 1324.18,253.00 1375.85,234.00"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="790.00,671.00 790.00,652.00 790.04,633.00 790.38,614.00 791.98,595.00 796.57,576.00 805.92,557.00 820.99,538.00 841.73,519.00 867.40,500.00 897.09,481.00 929.81,462.00 964.56,443.00 1001.01,424.00 1038.95,405.00 1078.73,386.00 1119.00,367.00 1160.40,348.00 1198.37,329.00"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.7" stroke-dasharray="6 5" points="1198.37,329.00 1249.09,310.00 1298.35,291.00 1375.85,272.00"/>
+<line x1="535.0" y1="724" x2="569.0" y2="724" stroke="#0072b2" stroke-width="3"/>
+<text x="577.0" y="729" font-family="sans-serif" font-size="13">ρ=60%</text>
+<line x1="680.0" y1="724" x2="714.0" y2="724" stroke="#009e73" stroke-width="3"/>
+<text x="722.0" y="729" font-family="sans-serif" font-size="13">ρ=70%</text>
+<line x1="825.0" y1="724" x2="859.0" y2="724" stroke="#e69f00" stroke-width="3"/>
+<text x="867.0" y="729" font-family="sans-serif" font-size="13">ρ=80%</text>
+<line x1="970.0" y1="724" x2="1004.0" y2="724" stroke="#d55e00" stroke-width="3"/>
+<text x="1012.0" y="729" font-family="sans-serif" font-size="13">ρ=90%</text>
+<text x="1398" y="725" font-family="sans-serif" text-anchor="end" font-size="11" fill="#555">solid ≥64; dashed 1–63</text>
+</svg>

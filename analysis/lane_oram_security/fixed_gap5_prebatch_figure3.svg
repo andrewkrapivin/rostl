@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="850" viewBox="0 0 1320 850">
+<rect width="100%" height="100%" fill="white"/>
+<text x="660.0" y="45" font-family="sans-serif" text-anchor="middle" font-size="25" font-weight="bold">Fixed gap 5: pre-batch stash tail</text>
+<text x="660.0" y="76" font-family="sans-serif" text-anchor="middle" font-size="15" fill="#444">X=16, Y=2, total bottom capacity 2²⁰; 2²¹ warm-up + 2²⁴ measured accesses</text>
+<line x1="105.00" y1="115" x2="105.00" y2="755" stroke="#e8e8e8"/>
+<text x="105.0" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">0</text>
+<line x1="211.36" y1="115" x2="211.36" y2="755" stroke="#e8e8e8"/>
+<text x="211.36363636363637" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">2</text>
+<line x1="317.73" y1="115" x2="317.73" y2="755" stroke="#e8e8e8"/>
+<text x="317.72727272727275" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">4</text>
+<line x1="424.09" y1="115" x2="424.09" y2="755" stroke="#e8e8e8"/>
+<text x="424.09090909090907" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">6</text>
+<line x1="530.45" y1="115" x2="530.45" y2="755" stroke="#e8e8e8"/>
+<text x="530.4545454545455" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">8</text>
+<line x1="636.82" y1="115" x2="636.82" y2="755" stroke="#e8e8e8"/>
+<text x="636.8181818181818" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">10</text>
+<line x1="743.18" y1="115" x2="743.18" y2="755" stroke="#e8e8e8"/>
+<text x="743.1818181818181" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">12</text>
+<line x1="849.55" y1="115" x2="849.55" y2="755" stroke="#e8e8e8"/>
+<text x="849.5454545454545" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">14</text>
+<line x1="955.91" y1="115" x2="955.91" y2="755" stroke="#e8e8e8"/>
+<text x="955.9090909090909" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">16</text>
+<line x1="1062.27" y1="115" x2="1062.27" y2="755" stroke="#e8e8e8"/>
+<text x="1062.2727272727275" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">18</text>
+<line x1="1168.64" y1="115" x2="1168.64" y2="755" stroke="#e8e8e8"/>
+<text x="1168.6363636363635" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">20</text>
+<line x1="1275.00" y1="115" x2="1275.00" y2="755" stroke="#e8e8e8"/>
+<text x="1275.0" y="783" font-family="sans-serif" text-anchor="middle" font-size="13">22</text>
+<line x1="105" y1="755.00" x2="1275" y2="755.00" stroke="#e8e8e8"/>
+<text x="92" y="760.0" font-family="sans-serif" text-anchor="end" font-size="13">0</text>
+<line x1="105" y1="675.00" x2="1275" y2="675.00" stroke="#e8e8e8"/>
+<text x="92" y="680.0" font-family="sans-serif" text-anchor="end" font-size="13">5</text>
+<line x1="105" y1="595.00" x2="1275" y2="595.00" stroke="#e8e8e8"/>
+<text x="92" y="600.0" font-family="sans-serif" text-anchor="end" font-size="13">10</text>
+<line x1="105" y1="515.00" x2="1275" y2="515.00" stroke="#e8e8e8"/>
+<text x="92" y="520.0" font-family="sans-serif" text-anchor="end" font-size="13">15</text>
+<line x1="105" y1="435.00" x2="1275" y2="435.00" stroke="#e8e8e8"/>
+<text x="92" y="440.0" font-family="sans-serif" text-anchor="end" font-size="13">20</text>
+<line x1="105" y1="355.00" x2="1275" y2="355.00" stroke="#e8e8e8"/>
+<text x="92" y="360.0" font-family="sans-serif" text-anchor="end" font-size="13">25</text>
+<line x1="105" y1="275.00" x2="1275" y2="275.00" stroke="#e8e8e8"/>
+<text x="92" y="280.0" font-family="sans-serif" text-anchor="end" font-size="13">30</text>
+<line x1="105" y1="195.00" x2="1275" y2="195.00" stroke="#e8e8e8"/>
+<text x="92" y="200.0" font-family="sans-serif" text-anchor="end" font-size="13">35</text>
+<line x1="105" y1="115.00" x2="1275" y2="115.00" stroke="#e8e8e8"/>
+<text x="92" y="120.0" font-family="sans-serif" text-anchor="end" font-size="13">40</text>
+<rect x="105" y="115" width="1170" height="640" fill="none" stroke="#222" stroke-width="1.5"/>
+<text x="690.0" y="820" font-family="sans-serif" text-anchor="middle" font-size="18">log₂(1 / Pr[pre-batch stash &gt; R])</text>
+<text x="28" y="435.0" font-family="sans-serif" text-anchor="middle" font-size="18" transform="rotate(-90 28 435.0)">Pre-batch stash threshold R (blocks)</text>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="105.00,739.00 105.00,723.00 105.08,707.00 105.77,691.00 109.02,675.00 118.46,659.00 137.66,643.00 168.57,627.00 211.08,611.00 263.86,595.00 324.75,579.00 391.29,563.00 462.58,547.00 537.02,531.00 612.65,515.00 690.11,499.00 771.01,483.00 846.17,467.00 912.63,451.00"/>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.72" stroke-dasharray="7 6" points="912.63,451.00 951.82,435.00 991.97,419.00 1017.31,403.00 1067.22,387.00 1173.59,371.00"/>
+<polyline fill="none" stroke="#56b4e9" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="105.00,739.00 105.00,723.00 105.08,707.00 105.78,691.00 109.02,675.00 118.41,659.00 137.56,643.00 168.37,627.00 210.77,611.00 263.16,595.00 324.01,579.00 390.94,563.00 462.81,547.00 537.03,531.00 615.67,515.00 698.53,499.00 788.30,483.00 872.42,467.00"/>
+<polyline fill="none" stroke="#56b4e9" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.72" stroke-dasharray="7 6" points="872.42,467.00 956.21,451.00 1055.40,435.00 1257.88,419.00"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="105.00,739.00 105.00,723.00 105.08,707.00 105.77,691.00 108.98,675.00 118.26,659.00 137.22,643.00 167.66,627.00 209.50,611.00 261.05,595.00 320.62,579.00 385.75,563.00 455.78,547.00 528.19,531.00 604.04,515.00 679.94,499.00 753.09,483.00 828.62,467.00 910.94,451.00"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.72" stroke-dasharray="7 6" points="910.94,451.00 978.78,435.00 1081.21,419.00 1204.70,403.00"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="105.00,739.00 105.00,723.00 105.08,707.00 105.74,691.00 108.86,675.00 117.84,659.00 136.19,643.00 165.64,627.00 205.88,611.00 255.08,595.00 310.96,579.00 370.80,563.00 431.38,547.00 491.61,531.00 547.81,515.00 600.16,499.00 650.04,483.00 696.06,467.00 740.35,451.00 787.63,435.00 847.26,419.00 909.29,403.00"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.72" stroke-dasharray="7 6" points="909.29,403.00 953.26,387.00 1002.22,371.00 1073.90,355.00 1134.39,339.00 1257.88,323.00"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="105.00,739.00 105.00,723.00 105.06,707.00 105.60,691.00 108.17,675.00 115.64,659.00 130.82,643.00 154.67,627.00 186.34,611.00 223.61,595.00 264.03,579.00 305.37,563.00 346.70,547.00 387.45,531.00 427.10,515.00 466.58,499.00 506.31,483.00 545.42,467.00 586.08,451.00 626.47,435.00 672.47,419.00 721.13,403.00 770.47,387.00 826.93,371.00 895.85,355.00"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.72" stroke-dasharray="7 6" points="895.85,355.00 976.79,339.00 1120.41,323.00"/>
+<polyline fill="none" stroke="#cc79a7" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="105.00,739.00 105.00,723.00 105.04,707.00 105.36,691.00 106.93,675.00 111.56,659.00 121.05,643.00 135.93,627.00 155.28,611.00 177.78,595.00 201.97,579.00 227.13,563.00 252.80,547.00 278.80,531.00 305.37,515.00 332.03,499.00 358.80,483.00 385.50,467.00 412.86,451.00 440.73,435.00 468.55,419.00 497.06,403.00 526.69,387.00 557.10,371.00 589.03,355.00 622.42,339.00 658.94,323.00 694.75,307.00 736.22,291.00 780.76,275.00 827.77,259.00 874.47,243.00"/>
+<polyline fill="none" stroke="#cc79a7" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.72" stroke-dasharray="7 6" points="874.47,243.00 949.03,227.00 1028.03,211.00 1098.33,195.00 1151.52,179.00"/>
+<line x1="938.79" y1="115" x2="938.79" y2="755" stroke="#555" stroke-width="1.3" stroke-dasharray="3 5"/>
+<text x="932.788364925997" y="133" font-family="sans-serif" text-anchor="end" font-size="12" fill="#444">64 exceedances</text>
+<line x1="123" y1="145" x2="157" y2="145" stroke="#0072b2" stroke-width="3"/>
+<text x="166" y="150" font-family="sans-serif" font-size="14">rho=100%</text>
+<line x1="123" y1="170" x2="157" y2="170" stroke="#56b4e9" stroke-width="3"/>
+<text x="166" y="175" font-family="sans-serif" font-size="14">rho=105%</text>
+<line x1="123" y1="195" x2="157" y2="195" stroke="#009e73" stroke-width="3"/>
+<text x="166" y="200" font-family="sans-serif" font-size="14">rho=110%</text>
+<line x1="123" y1="220" x2="157" y2="220" stroke="#e69f00" stroke-width="3"/>
+<text x="166" y="225" font-family="sans-serif" font-size="14">rho=115%</text>
+<line x1="123" y1="245" x2="157" y2="245" stroke="#d55e00" stroke-width="3"/>
+<text x="166" y="250" font-family="sans-serif" font-size="14">rho=120%</text>
+<line x1="123" y1="270" x2="157" y2="270" stroke="#cc79a7" stroke-width="3"/>
+<text x="166" y="275" font-family="sans-serif" font-size="14">rho=125%</text>
+<text x="1263" y="741" font-family="sans-serif" text-anchor="end" font-size="12" fill="#555">Solid: ≥64 exceedances; dashed: 1–63 exceedances</text>
+</svg>

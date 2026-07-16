@@ -15,6 +15,7 @@ const OS_RANDOM_BATCH_WORDS: usize = 1 << 20;
 struct SimUpdate {
   found: bool,
   insertion_demand: usize,
+  pre_batch: Option<usize>,
   stash_after: usize,
   overflowed: bool,
 }
@@ -137,6 +138,7 @@ struct MinibucketLaneSimulator {
   path: Vec<u32>,
   stashes: Vec<StashIndex>,
   random_queues: bool,
+  access_eviction_width: usize,
   eviction_policy: EvictionPolicy,
   eviction_chains: usize,
   labels: Vec<u32>,
@@ -145,7 +147,19 @@ struct MinibucketLaneSimulator {
 
 impl MinibucketLaneSimulator {
   fn new(max_n: usize, z: usize, y: usize, b: usize, stash_capacity: usize) -> Self {
+    Self::new_with_blocks(max_n, max_n, z, y, b, stash_capacity)
+  }
+
+  fn new_with_blocks(
+    max_n: usize,
+    block_count: usize,
+    z: usize,
+    y: usize,
+    b: usize,
+    stash_capacity: usize,
+  ) -> Self {
     assert!(max_n > 0 && max_n.is_power_of_two());
+    assert!(block_count > 0 && block_count < EMPTY_KEY as usize);
     assert!(z > 0 && y > 0 && stash_capacity > 0);
     assert!(b >= 2 && b.is_power_of_two());
 
@@ -185,16 +199,23 @@ impl MinibucketLaneSimulator {
       path: vec![EMPTY_KEY; height * bucket_slots],
       stashes: std::iter::once_with(|| StashIndex::new(max_n)).collect(),
       random_queues: false,
+      access_eviction_width: 1,
       eviction_policy: EvictionPolicy::Fixed,
       eviction_chains: 1,
-      labels: vec![0; max_n],
-      initialized: vec![false; max_n],
+      labels: vec![0; block_count],
+      initialized: vec![false; block_count],
     }
   }
 
   fn with_random_queues(mut self) -> Self {
     self.stashes = (0..self.z).map(|_| StashIndex::new(self.max_n)).collect();
     self.random_queues = true;
+    self
+  }
+
+  fn with_access_eviction_width(mut self, width: usize) -> Self {
+    assert!(width > 0 && width <= self.z && self.z % width == 0);
+    self.access_eviction_width = width;
     self
   }
 
@@ -247,6 +268,7 @@ impl MinibucketLaneSimulator {
       return SimUpdate {
         found,
         insertion_demand,
+        pre_batch: None,
         stash_after: self.stash_len(),
         overflowed: true,
       };
@@ -258,6 +280,7 @@ impl MinibucketLaneSimulator {
       self.evict_loaded_path(old_pos);
     }
     self.write_path(old_pos);
+    let pre_batch = (!background_paths.is_empty()).then(|| self.stash_len());
     for &path in background_paths {
       assert!((path as usize) < self.max_n);
       self.read_path(path);
@@ -265,9 +288,81 @@ impl MinibucketLaneSimulator {
       self.write_path(path);
     }
 
-    SimUpdate { found, insertion_demand, stash_after: self.stash_len(), overflowed: false }
+    SimUpdate {
+      found,
+      insertion_demand,
+      pre_batch,
+      stash_after: self.stash_len(),
+      overflowed: false,
+    }
   }
 
+  fn update_selected_with_schedule(
+    &mut self,
+    old_pos: u32,
+    new_pos: u32,
+    key: u32,
+    old_queue: usize,
+    new_queue: usize,
+    evict_accessed_path: bool,
+    background_paths: &[u32],
+  ) -> SimUpdate {
+    assert!(self.random_queues, "selected access requires random ORAM assignments");
+    assert!(matches!(self.eviction_policy, EvictionPolicy::Fixed));
+    assert!(old_queue < self.z && new_queue < self.z);
+    assert!((old_pos as usize) < self.max_n);
+    assert!((new_pos as usize) < self.max_n);
+    assert!((key as usize) < self.labels.len());
+    if self.initialized[key as usize] {
+      debug_assert_eq!(self.labels[key as usize], old_pos);
+    }
+
+    // The metadata simulator loads a wide path internally, but only the
+    // key's assigned ORAM is searched or modified during the normal access.
+    self.read_path(old_pos);
+    let found = self.remove_key_from_lane(key, old_queue);
+    self.labels[key as usize] = new_pos;
+    self.initialized[key as usize] = true;
+
+    let insertion_demand = self.stash_len() + 1;
+    if insertion_demand > self.stash_capacity {
+      return SimUpdate {
+        found,
+        insertion_demand,
+        pre_batch: None,
+        stash_after: self.stash_len(),
+        overflowed: true,
+      };
+    }
+    self.stashes[new_queue].insert(new_pos, key);
+
+    if evict_accessed_path {
+      let first_lane = old_queue / self.access_eviction_width * self.access_eviction_width;
+      for _ in 0..self.eviction_chains {
+        for lane in first_lane..first_lane + self.access_eviction_width {
+          self.evict_lane(old_pos, lane);
+        }
+      }
+    }
+    self.write_path(old_pos);
+    let pre_batch = (!background_paths.is_empty()).then(|| self.stash_len());
+
+    // A scheduled path is the only operation that evicts every ORAM.
+    for &path in background_paths {
+      assert!((path as usize) < self.max_n);
+      self.read_path(path);
+      self.evict_loaded_path(path);
+      self.write_path(path);
+    }
+
+    SimUpdate {
+      found,
+      insertion_demand,
+      pre_batch,
+      stash_after: self.stash_len(),
+      overflowed: false,
+    }
+  }
   fn evict_loaded_path(&mut self, path: u32) {
     match self.eviction_policy {
       EvictionPolicy::Fixed => {
@@ -311,6 +406,29 @@ impl MinibucketLaneSimulator {
       self.tree[target_start..target_start + self.bucket_slots]
         .copy_from_slice(&self.path[source_start..source_start + self.bucket_slots]);
     }
+  }
+
+  fn remove_key_from_lane(&mut self, key: u32, lane: usize) -> bool {
+    if self.initialized[key as usize] {
+      let label = self.labels[key as usize];
+      if self.stashes[lane].contains(label, key) {
+        self.stashes[lane].remove(label, key);
+        return true;
+      }
+    }
+
+    let mut found = false;
+    for depth in 0..self.height {
+      for slot in 0..self.y {
+        let index = self.path_index(depth, lane, slot);
+        if self.path[index] == key {
+          self.path[index] = EMPTY_KEY;
+          assert!(!found, "duplicate tree key {key}");
+          found = true;
+        }
+      }
+    }
+    found
   }
 
   fn remove_key(&mut self, key: u32) -> bool {
@@ -496,6 +614,33 @@ enum QueuePolicy {
 }
 
 #[derive(Clone, Copy, Debug)]
+enum AccessPolicy {
+  Wide,
+  Selected,
+}
+
+impl AccessPolicy {
+  const fn name(self) -> &'static str {
+    match self {
+      Self::Wide => "wide",
+      Self::Selected => "selected",
+    }
+  }
+}
+
+impl FromStr for AccessPolicy {
+  type Err = String;
+
+  fn from_str(value: &str) -> Result<Self, Self::Err> {
+    match value {
+      "wide" => Ok(Self::Wide),
+      "selected" => Ok(Self::Selected),
+      _ => Err(format!("unknown access policy: {value}")),
+    }
+  }
+}
+
+#[derive(Clone, Copy, Debug)]
 enum EvictionPolicy {
   Fixed,
   Pooled,
@@ -598,8 +743,8 @@ impl Workload {
 
   fn key(self, operation: u64, n: usize, random: &mut OsRandomWords) -> usize {
     match self {
-      Self::Cycle => operation as usize & (n - 1),
-      Self::Uniform => random.next_usize() & (n - 1),
+      Self::Cycle => operation as usize % n,
+      Self::Uniform => random.next_below(n),
     }
   }
 }
@@ -619,6 +764,7 @@ impl FromStr for Workload {
 #[derive(Debug)]
 struct Args {
   n: usize,
+  blocks: usize,
   b: usize,
   z: usize,
   y: usize,
@@ -626,6 +772,8 @@ struct Args {
   operations: u64,
   workload: Workload,
   queue_policy: QueuePolicy,
+  access_policy: AccessPolicy,
+  access_eviction_width: usize,
   eviction_policy: EvictionPolicy,
   eviction_chains: usize,
   path_schedule: PathSchedule,
@@ -640,6 +788,7 @@ impl Args {
   fn parse() -> Result<Self, String> {
     let mut result = Self {
       n: 1 << 12,
+      blocks: 0,
       b: 2,
       z: 2,
       y: 2,
@@ -647,6 +796,8 @@ impl Args {
       operations: 1 << 24,
       workload: Workload::Cycle,
       queue_policy: QueuePolicy::Shared,
+      access_policy: AccessPolicy::Wide,
+      access_eviction_width: 1,
       eviction_policy: EvictionPolicy::Fixed,
       eviction_chains: 1,
       path_schedule: PathSchedule::Same,
@@ -662,10 +813,13 @@ impl Args {
       let value = arguments.next().ok_or_else(|| format!("missing value for {argument}"))?;
       match argument.as_str() {
         "--n" => result.n = parse_number(&value)?,
+        "--blocks" => result.blocks = parse_number(&value)?,
         "--b" => result.b = parse_number(&value)?,
         "--z" => result.z = parse_number(&value)?,
         "--y" => result.y = parse_number(&value)?,
         "--queue-policy" => result.queue_policy = value.parse()?,
+        "--access-policy" => result.access_policy = value.parse()?,
+        "--access-eviction-width" => result.access_eviction_width = parse_number(&value)?,
         "--eviction-policy" => result.eviction_policy = value.parse()?,
         "--eviction-chains" => result.eviction_chains = parse_number(&value)?,
         "--path-schedule" => result.path_schedule = value.parse()?,
@@ -681,21 +835,35 @@ impl Args {
       }
     }
 
+    if result.blocks == 0 {
+      result.blocks = result.n;
+    }
+
     if !result.n.is_power_of_two()
+      || result.blocks >= EMPTY_KEY as usize
       || result.z == 0
       || result.y == 0
+      || result.access_eviction_width == 0
       || result.operations == 0
       || result.eviction_chains == 0
       || result.deterministic_denominator == 0
     {
       return Err(
-        "N must be a power of two; Z, Y, operations, eviction chains, and the deterministic denominator must be nonzero".to_owned(),
+        "N must be a power of two; blocks must fit in u32; Z, Y, operations, eviction chains, and the deterministic denominator must be nonzero".to_owned(),
       );
     }
     if matches!(result.eviction_policy, EvictionPolicy::Pooled)
       && matches!(result.queue_policy, QueuePolicy::Random)
     {
       return Err("pooled eviction requires the shared queue policy".to_owned());
+    }
+    if matches!(result.access_policy, AccessPolicy::Selected)
+      && (!matches!(result.queue_policy, QueuePolicy::Random)
+        || !matches!(result.eviction_policy, EvictionPolicy::Fixed)
+        || result.access_eviction_width > result.z
+        || result.z % result.access_eviction_width != 0)
+    {
+      return Err("selected access requires random queues and fixed-lane eviction".to_owned());
     }
     if result.b < 2 || !result.b.is_power_of_two() {
       return Err("B must be a power of two at least 2".to_owned());
@@ -775,6 +943,17 @@ impl OsRandomWords {
     self.next += 1;
     result
   }
+  fn next_below(&mut self, bound: usize) -> usize {
+    assert!(bound > 0 && bound < EMPTY_KEY as usize);
+    let bound = bound as u32;
+    let threshold = bound.wrapping_neg() % bound;
+    loop {
+      let value = self.next_usize() as u32;
+      if value >= threshold {
+        return (value % bound) as usize;
+      }
+    }
+  }
 }
 
 fn parse_number<T>(value: &str) -> Result<T, String>
@@ -844,14 +1023,49 @@ fn rate_deterministic_paths(
   paths.extend((first..end).map(|sequence| reverse_path_digits(sequence as usize & (n - 1), n, b)));
 }
 
+fn apply_scheduled_update(
+  simulator: &mut MinibucketLaneSimulator,
+  access_policy: AccessPolicy,
+  old_pos: u32,
+  new_pos: u32,
+  key: u32,
+  old_queue: usize,
+  new_queue: usize,
+  evict_accessed_path: bool,
+  background_paths: &[u32],
+) -> SimUpdate {
+  match access_policy {
+    AccessPolicy::Wide => simulator.update_with_schedule(
+      old_pos,
+      new_pos,
+      key,
+      new_queue,
+      evict_accessed_path,
+      background_paths,
+    ),
+    AccessPolicy::Selected => simulator.update_selected_with_schedule(
+      old_pos,
+      new_pos,
+      key,
+      old_queue,
+      new_queue,
+      evict_accessed_path,
+      background_paths,
+    ),
+  }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn perform_update(
   simulator: &mut MinibucketLaneSimulator,
   positions: &mut [u32],
+  queues: &mut [usize],
   key: usize,
   random: &mut OsRandomWords,
   queue_random: &mut OsRandomWords,
   eviction_random: &mut OsRandomWords,
   eviction_counter: &mut u64,
+  access_policy: AccessPolicy,
   path_schedule: PathSchedule,
   b: usize,
   deterministic_numerator: usize,
@@ -859,35 +1073,96 @@ fn perform_update(
   radix_paths: &mut Vec<u32>,
 ) -> SimUpdate {
   let old_pos = positions[key];
+  let old_queue = queues[key];
   let new_pos = (random.next_usize() & (simulator.max_n() - 1)) as u32;
-  let queue = queue_random.next_usize();
+  let new_queue = queue_random.next_below(simulator.z);
   let result = match path_schedule {
-    PathSchedule::Same => simulator.update_in_queue(old_pos, new_pos, key as u32, queue),
+    PathSchedule::Same => apply_scheduled_update(
+      simulator,
+      access_policy,
+      old_pos,
+      new_pos,
+      key as u32,
+      old_queue,
+      new_queue,
+      true,
+      &[],
+    ),
     PathSchedule::AccessPlusUniform => {
       let background = (eviction_random.next_usize() & (simulator.max_n() - 1)) as u32;
-      simulator.update_with_schedule(old_pos, new_pos, key as u32, queue, true, &[background])
+      apply_scheduled_update(
+        simulator,
+        access_policy,
+        old_pos,
+        new_pos,
+        key as u32,
+        old_queue,
+        new_queue,
+        true,
+        &[background],
+      )
     }
     PathSchedule::PaperRandom => {
       let half = simulator.max_n() / 2;
       let left = (eviction_random.next_usize() & (half - 1)) as u32;
       let right = (half | (eviction_random.next_usize() & (half - 1))) as u32;
-      simulator.update_with_schedule(old_pos, new_pos, key as u32, queue, false, &[left, right])
+      apply_scheduled_update(
+        simulator,
+        access_policy,
+        old_pos,
+        new_pos,
+        key as u32,
+        old_queue,
+        new_queue,
+        false,
+        &[left, right],
+      )
     }
     PathSchedule::PaperDeterministic | PathSchedule::AccessPlusPaperDeterministic => {
       let paths = paper_deterministic_paths(*eviction_counter, simulator.max_n());
       *eviction_counter = eviction_counter.wrapping_add(1);
       let evict_accessed = matches!(path_schedule, PathSchedule::AccessPlusPaperDeterministic);
-      simulator.update_with_schedule(old_pos, new_pos, key as u32, queue, evict_accessed, &paths)
+      apply_scheduled_update(
+        simulator,
+        access_policy,
+        old_pos,
+        new_pos,
+        key as u32,
+        old_queue,
+        new_queue,
+        evict_accessed,
+        &paths,
+      )
     }
     PathSchedule::AccessPlusOneDeterministic => {
       let path = one_deterministic_path(*eviction_counter, simulator.max_n(), b);
       *eviction_counter = eviction_counter.wrapping_add(1);
-      simulator.update_with_schedule(old_pos, new_pos, key as u32, queue, true, &[path])
+      apply_scheduled_update(
+        simulator,
+        access_policy,
+        old_pos,
+        new_pos,
+        key as u32,
+        old_queue,
+        new_queue,
+        true,
+        &[path],
+      )
     }
     PathSchedule::AccessPlusTwoDeterministic => {
       deterministic_path_group(*eviction_counter, simulator.max_n(), b, 2, radix_paths);
       *eviction_counter = eviction_counter.wrapping_add(1);
-      simulator.update_with_schedule(old_pos, new_pos, key as u32, queue, true, radix_paths)
+      apply_scheduled_update(
+        simulator,
+        access_policy,
+        old_pos,
+        new_pos,
+        key as u32,
+        old_queue,
+        new_queue,
+        true,
+        radix_paths,
+      )
     }
     PathSchedule::AccessPlusRateDeterministic => {
       rate_deterministic_paths(
@@ -899,26 +1174,53 @@ fn perform_update(
         radix_paths,
       );
       *eviction_counter = eviction_counter.wrapping_add(1);
-      simulator.update_with_schedule(old_pos, new_pos, key as u32, queue, true, radix_paths)
+      apply_scheduled_update(
+        simulator,
+        access_policy,
+        old_pos,
+        new_pos,
+        key as u32,
+        old_queue,
+        new_queue,
+        true,
+        radix_paths,
+      )
     }
     PathSchedule::AccessPlusRadixDeterministic => {
       radix_deterministic_paths(*eviction_counter, simulator.max_n(), b, radix_paths);
       *eviction_counter = eviction_counter.wrapping_add(1);
-      simulator.update_with_schedule(old_pos, new_pos, key as u32, queue, true, radix_paths)
+      apply_scheduled_update(
+        simulator,
+        access_policy,
+        old_pos,
+        new_pos,
+        key as u32,
+        old_queue,
+        new_queue,
+        true,
+        radix_paths,
+      )
     }
   };
   positions[key] = new_pos;
+  queues[key] = new_queue;
   result
 }
-
-fn append_tail(output: &mut String, args: &Args, metric: &str, histogram: &[u64], maximum: usize) {
-  let mut exceed_count = args.operations;
+fn append_tail(
+  output: &mut String,
+  args: &Args,
+  metric: &str,
+  samples: u64,
+  histogram: &[u64],
+  maximum: usize,
+) {
+  let mut exceed_count = samples;
   for threshold in 0..=maximum {
     exceed_count -= histogram[threshold];
-    let probability = exceed_count as f64 / args.operations as f64;
+    let probability = exceed_count as f64 / samples as f64;
     let log2_inverse = if probability == 0.0 { f64::INFINITY } else { -probability.log2() };
     output.push_str(&format!(
-      "{},{},{},{},{},{},{},{},{},os-getrandom,random-old-and-new-paths,{},{},{},{:.17},{:.9},{},{},{},{},{}\n",
+      "{},{},{},{},{},{},{},{},{},os-getrandom,random-old-and-new-paths,{},{},{},{},{:.17},{:.9},{},{},{},{},{}\n",
       args.b,
       args.z,
       args.y,
@@ -929,6 +1231,7 @@ fn append_tail(output: &mut String, args: &Args, metric: &str, histogram: &[u64]
       args.z * args.y,
       args.queue_policy.name(),
       metric,
+      samples,
       threshold,
       exceed_count,
       probability,
@@ -948,19 +1251,19 @@ fn append_epoch_tail(
   args: &Args,
   epoch: u64,
   metric: &str,
+  samples: u64,
   histogram: &[u64],
   minimum: usize,
   sum: u128,
   maximum: usize,
 ) {
-  let samples = args.epoch_operations;
   let mut exceed_count = samples;
   for threshold in 0..=maximum {
     exceed_count -= histogram.get(threshold).copied().unwrap_or(0);
     let probability = exceed_count as f64 / samples as f64;
     let log2_inverse = if probability == 0.0 { f64::INFINITY } else { -probability.log2() };
     output.push_str(&format!(
-      "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{:.17},{:.9},{},{:.9},{},{},{},{},os-getrandom,random-old-and-new-paths\n",
+      "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{:.17},{:.9},{},{:.9},{},{},{},{},os-getrandom,random-old-and-new-paths\n",
       args.b,
       args.z,
       args.y,
@@ -968,11 +1271,12 @@ fn append_epoch_tail(
       args.operations,
       args.epoch_operations,
       epoch,
-      epoch * samples,
-      (epoch + 1) * samples,
+      epoch * args.epoch_operations,
+      (epoch + 1) * args.epoch_operations,
       args.workload.name(),
       args.z * args.y,
       metric,
+      samples,
       threshold,
       exceed_count,
       probability,
@@ -993,12 +1297,21 @@ fn main() {
     process::exit(2);
   });
   let start = Instant::now();
-  let mut simulator = MinibucketLaneSimulator::new(args.n, args.z, args.y, args.b, args.n + 1);
+  let mut simulator = MinibucketLaneSimulator::new_with_blocks(
+    args.n,
+    args.blocks,
+    args.z,
+    args.y,
+    args.b,
+    args.blocks + 1,
+  );
   if matches!(args.queue_policy, QueuePolicy::Random) {
     simulator = simulator.with_random_queues();
   }
+  simulator = simulator.with_access_eviction_width(args.access_eviction_width);
   simulator = simulator.with_eviction_strategy(args.eviction_policy, args.eviction_chains);
-  let mut positions = Vec::with_capacity(args.n);
+  let mut positions = Vec::with_capacity(args.blocks);
+  let mut queues = vec![0; args.blocks];
   let mut label_random = OsRandomWords::new();
   let mut workload_random = OsRandomWords::new();
   let mut queue_random = OsRandomWords::new();
@@ -1007,16 +1320,18 @@ fn main() {
   let rate_capacity = args.deterministic_numerator.div_ceil(args.deterministic_denominator);
   let mut radix_paths = Vec::with_capacity(args.b.max(rate_capacity));
 
-  for key in 0..args.n {
+  for key in 0..args.blocks {
     positions.push((label_random.next_usize() & (args.n - 1)) as u32);
     let result = perform_update(
       &mut simulator,
       &mut positions,
+      &mut queues,
       key,
       &mut label_random,
       &mut queue_random,
       &mut eviction_random,
       &mut eviction_counter,
+      args.access_policy,
       args.path_schedule,
       args.b,
       args.deterministic_numerator,
@@ -1026,15 +1341,17 @@ fn main() {
     assert!(!result.found && !result.overflowed);
   }
   for operation in 0..args.warmup {
-    let key = args.workload.key(operation, args.n, &mut workload_random);
+    let key = args.workload.key(operation, args.blocks, &mut workload_random);
     let result = perform_update(
       &mut simulator,
       &mut positions,
+      &mut queues,
       key,
       &mut label_random,
       &mut queue_random,
       &mut eviction_random,
       &mut eviction_counter,
+      args.access_policy,
       args.path_schedule,
       args.b,
       args.deterministic_numerator,
@@ -1045,35 +1362,47 @@ fn main() {
   }
   let measurement_start_post = simulator.stash_len();
 
-  let mut post_histogram = vec![0u64; args.n + 2];
-  let mut demand_histogram = vec![0u64; args.n + 2];
+  let mut post_histogram = vec![0u64; args.blocks + 2];
+  let mut pre_batch_histogram = vec![0u64; args.blocks + 2];
+  let mut pre_batch_samples = 0u64;
+  let mut pre_batch_sum = 0u128;
+  let mut demand_histogram = vec![0u64; args.blocks + 2];
   let mut post_sum = 0u128;
   let mut demand_sum = 0u128;
   let mut post_min = usize::MAX;
   let mut post_max = 0usize;
   let mut demand_min = usize::MAX;
+  let mut pre_batch_min = usize::MAX;
+  let mut pre_batch_max = 0usize;
   let mut demand_max = 0usize;
   let mut epoch_csv = String::from(
-    "b,z,y,n,operations,epoch_operations,epoch,first_operation,last_operation,workload,bucket_slots,metric,threshold,exceed_count,probability,log2_inverse,minimum,mean,maximum,path_schedule,deterministic_numerator,deterministic_denominator,rng_source,initialization\n",
+    "b,z,y,n,operations,epoch_operations,epoch,first_operation,last_operation,workload,bucket_slots,metric,samples,threshold,exceed_count,probability,log2_inverse,minimum,mean,maximum,path_schedule,deterministic_numerator,deterministic_denominator,rng_source,initialization\n",
   );
   let mut epoch_post_histogram = Vec::<u64>::new();
   let mut epoch_demand_histogram = Vec::<u64>::new();
   let mut epoch_post_sum = 0u128;
+  let mut epoch_pre_batch_histogram = Vec::<u64>::new();
+  let mut epoch_pre_batch_samples = 0u64;
+  let mut epoch_pre_batch_sum = 0u128;
   let mut epoch_demand_sum = 0u128;
   let mut epoch_post_min = usize::MAX;
   let mut epoch_post_max = 0usize;
   let mut epoch_demand_min = usize::MAX;
   let mut epoch_demand_max = 0usize;
+  let mut epoch_pre_batch_min = usize::MAX;
+  let mut epoch_pre_batch_max = 0usize;
   for operation in 0..args.operations {
-    let key = args.workload.key(args.warmup + operation, args.n, &mut workload_random);
+    let key = args.workload.key(args.warmup + operation, args.blocks, &mut workload_random);
     let result = perform_update(
       &mut simulator,
       &mut positions,
+      &mut queues,
       key,
       &mut label_random,
       &mut queue_random,
       &mut eviction_random,
       &mut eviction_counter,
+      args.access_policy,
       args.path_schedule,
       args.b,
       args.deterministic_numerator,
@@ -1089,6 +1418,13 @@ fn main() {
     post_max = post_max.max(result.stash_after);
     demand_min = demand_min.min(result.insertion_demand);
     demand_max = demand_max.max(result.insertion_demand);
+    if let Some(value) = result.pre_batch {
+      pre_batch_histogram[value] += 1;
+      pre_batch_samples += 1;
+      pre_batch_sum += value as u128;
+      pre_batch_min = pre_batch_min.min(value);
+      pre_batch_max = pre_batch_max.max(value);
+    }
     if args.epoch_operations != 0 {
       if epoch_post_histogram.len() <= result.stash_after {
         epoch_post_histogram.resize(result.stash_after + 1, 0);
@@ -1105,6 +1441,16 @@ fn main() {
       epoch_demand_min = epoch_demand_min.min(result.insertion_demand);
       epoch_demand_max = epoch_demand_max.max(result.insertion_demand);
 
+      if let Some(value) = result.pre_batch {
+        if epoch_pre_batch_histogram.len() <= value {
+          epoch_pre_batch_histogram.resize(value + 1, 0);
+        }
+        epoch_pre_batch_histogram[value] += 1;
+        epoch_pre_batch_samples += 1;
+        epoch_pre_batch_sum += value as u128;
+        epoch_pre_batch_min = epoch_pre_batch_min.min(value);
+        epoch_pre_batch_max = epoch_pre_batch_max.max(value);
+      }
       if (operation + 1) % args.epoch_operations == 0 {
         let epoch = operation / args.epoch_operations;
         append_epoch_tail(
@@ -1112,6 +1458,7 @@ fn main() {
           &args,
           epoch,
           "post",
+          args.epoch_operations,
           &epoch_post_histogram,
           epoch_post_min,
           epoch_post_sum,
@@ -1122,28 +1469,57 @@ fn main() {
           &args,
           epoch,
           "insertion",
+          args.epoch_operations,
           &epoch_demand_histogram,
           epoch_demand_min,
           epoch_demand_sum,
           epoch_demand_max,
         );
+        if epoch_pre_batch_samples > 0 {
+          append_epoch_tail(
+            &mut epoch_csv,
+            &args,
+            epoch,
+            "pre_batch",
+            epoch_pre_batch_samples,
+            &epoch_pre_batch_histogram,
+            epoch_pre_batch_min,
+            epoch_pre_batch_sum,
+            epoch_pre_batch_max,
+          );
+        }
         epoch_post_histogram.clear();
         epoch_demand_histogram.clear();
+        epoch_pre_batch_histogram.clear();
+        epoch_pre_batch_samples = 0;
+        epoch_pre_batch_sum = 0;
         epoch_post_sum = 0;
         epoch_demand_sum = 0;
         epoch_post_min = usize::MAX;
         epoch_post_max = 0;
         epoch_demand_min = usize::MAX;
         epoch_demand_max = 0;
+        epoch_pre_batch_min = usize::MAX;
+        epoch_pre_batch_max = 0;
       }
     }
   }
 
   let mut csv = String::from(
-    "b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule,deterministic_numerator,deterministic_denominator\n",
+    "b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,samples,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule,deterministic_numerator,deterministic_denominator\n",
   );
-  append_tail(&mut csv, &args, "post", &post_histogram, post_max);
-  append_tail(&mut csv, &args, "insertion", &demand_histogram, demand_max);
+  append_tail(&mut csv, &args, "post", args.operations, &post_histogram, post_max);
+  append_tail(&mut csv, &args, "insertion", args.operations, &demand_histogram, demand_max);
+  if pre_batch_samples > 0 {
+    append_tail(
+      &mut csv,
+      &args,
+      "pre_batch",
+      pre_batch_samples,
+      &pre_batch_histogram,
+      pre_batch_max,
+    );
+  }
   fs::write(&args.output, csv).unwrap_or_else(|error| {
     eprintln!("failed to write {}: {error}", args.output);
     process::exit(1);
@@ -1156,13 +1532,22 @@ fn main() {
   }
 
   let elapsed = start.elapsed().as_secs_f64();
+  let (reported_pre_batch_min, pre_batch_mean, reported_pre_batch_max) = if pre_batch_samples == 0 {
+    (0, 0.0, 0)
+  } else {
+    (pre_batch_min, pre_batch_sum as f64 / pre_batch_samples as f64, pre_batch_max)
+  };
   eprintln!(
-    "B={} Z={} Y={} bucket_slots={} n={} workload={} queue_policy={} eviction_policy={} eviction_chains={} path_schedule={} deterministic_rate={}/{} rng=os-getrandom warmup={} measurement_start_post={} measured={} epoch_operations={} seconds={:.3} Mop/s={:.3} post[min/mean/max]={}/{:.3}/{} insertion[min/mean/max]={}/{:.3}/{} output={} epoch_output={}",
+    "B={} Z={} Y={} bucket_slots={} tree_leaves={} blocks={} leaf_slot_occupancy={:.6} access_policy={} access_eviction_width={} workload={} queue_policy={} eviction_policy={} eviction_chains={} path_schedule={} deterministic_rate={}/{} rng=os-getrandom warmup={} measurement_start_post={} measured={} epoch_operations={} seconds={:.3} Mop/s={:.3} post[min/mean/max]={}/{:.3}/{} insertion[min/mean/max]={}/{:.3}/{} pre_batch[samples/min/mean/max]={}/{}/{:.3}/{} output={} epoch_output={}",
     args.b,
     args.z,
     args.y,
     args.z * args.y,
     args.n,
+    args.blocks,
+    args.blocks as f64 / (args.z * args.y * args.n) as f64,
+    args.access_policy.name(),
+    args.access_eviction_width,
     args.workload.name(),
     args.queue_policy.name(),
     args.eviction_policy.name(),
@@ -1182,6 +1567,10 @@ fn main() {
     demand_min,
     demand_sum as f64 / args.operations as f64,
     demand_max,
+    pre_batch_samples,
+    reported_pre_batch_min,
+    pre_batch_mean,
+    reported_pre_batch_max,
     args.output,
     args.epoch_output,
   );
@@ -1235,6 +1624,85 @@ mod tests {
       assert!(!result.overflowed);
       positions[key] = new_pos;
       assert_eq!(simulator.block_count(), n.min(operation + 1));
+    }
+  }
+
+  #[test]
+  fn selected_access_does_not_evict_an_unaccessed_oram() {
+    let leaves = 4;
+    let x = 2;
+    let mut simulator =
+      MinibucketLaneSimulator::new_with_blocks(leaves, 2, x, 1, 2, 3).with_random_queues();
+    simulator.labels[0] = 0;
+    simulator.labels[1] = 0;
+    simulator.initialized[0] = true;
+    simulator.initialized[1] = true;
+
+    let root_lane0 = simulator.path_index(0, 0, 0);
+    let root_lane1 = simulator.path_index(0, 1, 0);
+    simulator.tree[root_lane0] = 0;
+    simulator.tree[root_lane1] = 1;
+
+    let result = simulator.update_selected_with_schedule(0, 0, 0, 0, 0, true, &[]);
+    assert!(result.found && !result.overflowed);
+    assert_eq!(simulator.tree[root_lane1], 1, "unaccessed ORAM must remain byte-for-byte in place");
+    assert_eq!(simulator.block_count(), 2);
+  }
+
+  #[test]
+  fn paired_access_evicts_the_pair_but_not_other_orams() {
+    let leaves = 4;
+    let x = 4;
+    let mut simulator = MinibucketLaneSimulator::new_with_blocks(leaves, 3, x, 1, 2, 4)
+      .with_random_queues()
+      .with_access_eviction_width(2);
+    for key in 0..3 {
+      simulator.labels[key] = 0;
+      simulator.initialized[key] = true;
+      let root = simulator.path_index(0, key, 0);
+      simulator.tree[root] = key as u32;
+    }
+
+    let paired_root = simulator.path_index(0, 1, 0);
+    let other_root = simulator.path_index(0, 2, 0);
+    let result = simulator.update_selected_with_schedule(0, 0, 0, 0, 0, true, &[]);
+    assert!(result.found && !result.overflowed);
+    assert_eq!(simulator.tree[paired_root], EMPTY_KEY, "paired ORAM must be evicted");
+    assert_eq!(simulator.tree[other_root], 2, "ORAM outside the pair must remain untouched");
+    assert_eq!(simulator.block_count(), 3);
+  }
+
+  #[test]
+  fn selected_oram_accesses_and_synchronized_evictions_conserve_every_block() {
+    let leaves = 256;
+    let x = 4;
+    let blocks = leaves * x / 2;
+    let mut simulator =
+      MinibucketLaneSimulator::new_with_blocks(leaves, blocks, x, 1, 2, blocks + 1)
+        .with_random_queues();
+    let mut positions = vec![0; blocks];
+    let mut queues = vec![0; blocks];
+    let mut paths = Vec::new();
+    for operation in 0..50_000 {
+      let key = operation % blocks;
+      let new_pos = position(operation, key, leaves);
+      let new_queue = position(operation + 17, key + 3, leaves) as usize % x;
+      // E=2 with X=4: one synchronized four-ORAM round every two operations.
+      super::rate_deterministic_paths(operation as u64, leaves, 2, 1, 2, &mut paths);
+      let result = simulator.update_selected_with_schedule(
+        positions[key],
+        new_pos,
+        key as u32,
+        queues[key],
+        new_queue,
+        true,
+        &paths,
+      );
+      assert_eq!(result.found, operation >= blocks);
+      assert!(!result.overflowed);
+      positions[key] = new_pos;
+      queues[key] = new_queue;
+      assert_eq!(simulator.block_count(), blocks.min(operation + 1));
     }
   }
 
@@ -1379,12 +1847,36 @@ mod tests {
           assert_eq!(path, super::one_deterministic_path(sequence as u64, n, 4));
           assert!(!seen[path as usize]);
           seen[path as usize] = true;
+
           sequence += 1;
         }
         timestep += 1;
       }
       assert!(seen.into_iter().all(|visited| visited));
     }
+  }
+
+  #[test]
+  fn pre_batch_snapshot_is_between_access_and_background_evictions() {
+    let n = 64;
+    let mut simulator = MinibucketLaneSimulator::new(n, 2, 2, 2, n + 1);
+    let mut positions = vec![0; n];
+
+    for operation in 0..2_000 {
+      let key = operation % n;
+      let new_pos = position(operation, key, n);
+      let path = super::one_deterministic_path(operation as u64, n, 2);
+      let result =
+        simulator.update_with_schedule(positions[key], new_pos, key as u32, 0, true, &[path]);
+      let pre_batch = result.pre_batch.expect("scheduled eviction must record its input stash");
+      assert!(result.insertion_demand >= pre_batch);
+      assert!(pre_batch >= result.stash_after);
+      assert!(!result.overflowed);
+      positions[key] = new_pos;
+    }
+
+    let result = simulator.update_with_schedule(positions[0], 0, 0, 0, true, &[]);
+    assert!(result.pre_batch.is_none(), "ordinary access is not a batch boundary");
   }
 
   #[test]

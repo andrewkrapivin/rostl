@@ -1,0 +1,32 @@
+{
+  "gap": 5,
+  "x": 16,
+  "z": 8,
+  "y": 2,
+  "warmup_per_replicate": 16777216,
+  "operations_per_replicate": 1073741824,
+  "replicates_per_load": 4,
+  "total_operations_per_load": 4294967296,
+  "loads": {
+    "110": {
+      "partials": [
+        "analysis/lane_oram_security/fixed_gap5_overnight_runs/rho110_rep0_ops30.csv",
+        "analysis/lane_oram_security/fixed_gap5_overnight_runs/rho110_rep1_ops30.csv",
+        "analysis/lane_oram_security/fixed_gap5_overnight_runs/rho110_rep2_ops30.csv",
+        "analysis/lane_oram_security/fixed_gap5_overnight_runs/rho110_rep3_ops30.csv"
+      ],
+      "combined": "analysis/lane_oram_security/fixed_gap5_overnight_runs/combined_rho110_ops32.csv",
+      "epoch_file": "analysis/lane_oram_security/fixed_gap5_overnight_runs/combined_rho110_epochs.csv"
+    },
+    "120": {
+      "partials": [
+        "analysis/lane_oram_security/fixed_gap5_overnight_runs/rho120_rep0_ops30.csv",
+        "analysis/lane_oram_security/fixed_gap5_overnight_runs/rho120_rep1_ops30.csv",
+        "analysis/lane_oram_security/fixed_gap5_overnight_runs/rho120_rep2_ops30.csv",
+        "analysis/lane_oram_security/fixed_gap5_overnight_runs/rho120_rep3_ops30.csv"
+      ],
+      "combined": "analysis/lane_oram_security/fixed_gap5_overnight_runs/combined_rho120_ops32.csv",
+      "epoch_file": "analysis/lane_oram_security/fixed_gap5_overnight_runs/combined_rho120_epochs.csv"
+    }
+  }
+}

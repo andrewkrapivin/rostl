@@ -1,0 +1,14 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule,deterministic_numerator,deterministic_denominator
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,post,0,398008,0.37957000732421875,1.397562096,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,post,1,42807,0.04082393646240234,4.614440888,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,post,2,918,0.00087547302246094,10.157649657,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,post,3,20,0.00001907348632812,15.678071905,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,post,4,1,0.00000095367431641,20.000000000,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,post,5,0,0.00000000000000000,inf,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,insertion,0,1048576,1.00000000000000000,-0.000000000,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,insertion,1,398008,0.37957000732421875,1.397562096,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,insertion,2,42807,0.04082393646240234,4.614440888,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,insertion,3,918,0.00087547302246094,10.157649657,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,insertion,4,20,0.00001907348632812,15.678071905,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,insertion,5,1,0.00000095367431641,20.000000000,fixed,1,access-plus-rate-deterministic,6,8
+2,8,1,262144,8388608,1048576,cycle,8,random,os-getrandom,random-old-and-new-paths,insertion,6,0,0.00000000000000000,inf,fixed,1,access-plus-rate-deterministic,6,8

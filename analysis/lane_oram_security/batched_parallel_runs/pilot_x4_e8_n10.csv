@@ -1,0 +1,10 @@
+b,z,y,n,warmup,operations,workload,bucket_slots,queue_policy,rng_source,initialization,metric,threshold,exceed_count,probability,log2_inverse,eviction_policy,eviction_chains,path_schedule,deterministic_numerator,deterministic_denominator
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,post,0,6614,0.00157690048217773,9.308692670,fixed,1,access-plus-rate-deterministic,8,4
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,post,1,75,0.00001788139343262,15.771181310,fixed,1,access-plus-rate-deterministic,8,4
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,post,2,1,0.00000023841857910,22.000000000,fixed,1,access-plus-rate-deterministic,8,4
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,post,3,0,0.00000000000000000,inf,fixed,1,access-plus-rate-deterministic,8,4
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,insertion,0,4194304,1.00000000000000000,-0.000000000,fixed,1,access-plus-rate-deterministic,8,4
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,insertion,1,6614,0.00157690048217773,9.308692670,fixed,1,access-plus-rate-deterministic,8,4
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,insertion,2,75,0.00001788139343262,15.771181310,fixed,1,access-plus-rate-deterministic,8,4
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,insertion,3,1,0.00000023841857910,22.000000000,fixed,1,access-plus-rate-deterministic,8,4
+2,4,1,1024,1048576,4194304,cycle,4,random,os-getrandom,random-old-and-new-paths,insertion,4,0,0.00000000000000000,inf,fixed,1,access-plus-rate-deterministic,8,4

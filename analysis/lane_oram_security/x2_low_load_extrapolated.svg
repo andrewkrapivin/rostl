@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="790" viewBox="0 0 1500 790">
+<rect width="100%" height="100%" fill="white"/>
+<text x="750.0" y="43" font-family="sans-serif" text-anchor="middle" font-size="26" font-weight="bold">X=2 low-load tails with 96-bit extrapolation</text>
+<text x="750.0" y="75" font-family="sans-serif" text-anchor="middle" font-size="15" fill="#444">Dashed fits use R(10) through the last point with ≥64 exceedances; shaded area is extrapolation</text>
+<line x1="90.00" y1="120" x2="90.00" y2="690" stroke="#ededed"/>
+<text x="90.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">0</text>
+<line x1="152.00" y1="120" x2="152.00" y2="690" stroke="#ededed"/>
+<text x="152.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">10</text>
+<line x1="214.00" y1="120" x2="214.00" y2="690" stroke="#ededed"/>
+<text x="214.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">20</text>
+<line x1="276.00" y1="120" x2="276.00" y2="690" stroke="#ededed"/>
+<text x="276.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">30</text>
+<line x1="338.00" y1="120" x2="338.00" y2="690" stroke="#ededed"/>
+<text x="338.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">40</text>
+<line x1="400.00" y1="120" x2="400.00" y2="690" stroke="#ededed"/>
+<text x="400.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">50</text>
+<line x1="462.00" y1="120" x2="462.00" y2="690" stroke="#ededed"/>
+<text x="462.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">60</text>
+<line x1="524.00" y1="120" x2="524.00" y2="690" stroke="#ededed"/>
+<text x="524.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">70</text>
+<line x1="586.00" y1="120" x2="586.00" y2="690" stroke="#ededed"/>
+<text x="586.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">80</text>
+<line x1="648.00" y1="120" x2="648.00" y2="690" stroke="#ededed"/>
+<text x="648.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">90</text>
+<line x1="710.00" y1="120" x2="710.00" y2="690" stroke="#ededed"/>
+<text x="710.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">100</text>
+<line x1="90.0" y1="690.00" x2="710.0" y2="690.00" stroke="#ededed"/>
+<text x="80.0" y="694.0" font-family="sans-serif" text-anchor="end" font-size="11">0</text>
+<line x1="90.0" y1="618.75" x2="710.0" y2="618.75" stroke="#ededed"/>
+<text x="80.0" y="622.75" font-family="sans-serif" text-anchor="end" font-size="11">10</text>
+<line x1="90.0" y1="547.50" x2="710.0" y2="547.50" stroke="#ededed"/>
+<text x="80.0" y="551.5" font-family="sans-serif" text-anchor="end" font-size="11">20</text>
+<line x1="90.0" y1="476.25" x2="710.0" y2="476.25" stroke="#ededed"/>
+<text x="80.0" y="480.25" font-family="sans-serif" text-anchor="end" font-size="11">30</text>
+<line x1="90.0" y1="405.00" x2="710.0" y2="405.00" stroke="#ededed"/>
+<text x="80.0" y="409.0" font-family="sans-serif" text-anchor="end" font-size="11">40</text>
+<line x1="90.0" y1="333.75" x2="710.0" y2="333.75" stroke="#ededed"/>
+<text x="80.0" y="337.75" font-family="sans-serif" text-anchor="end" font-size="11">50</text>
+<line x1="90.0" y1="262.50" x2="710.0" y2="262.50" stroke="#ededed"/>
+<text x="80.0" y="266.5" font-family="sans-serif" text-anchor="end" font-size="11">60</text>
+<line x1="90.0" y1="191.25" x2="710.0" y2="191.25" stroke="#ededed"/>
+<text x="80.0" y="195.25" font-family="sans-serif" text-anchor="end" font-size="11">70</text>
+<line x1="90.0" y1="120.00" x2="710.0" y2="120.00" stroke="#ededed"/>
+<text x="80.0" y="124.0" font-family="sans-serif" text-anchor="end" font-size="11">80</text>
+<rect x="90.0" y="120" width="620.0" height="570" fill="none" stroke="#222"/>
+<text x="400.0" y="102" font-family="sans-serif" text-anchor="middle" font-size="18" font-weight="bold">E=1.5</text>
+<line x1="790.00" y1="120" x2="790.00" y2="690" stroke="#ededed"/>
+<text x="790.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">0</text>
+<line x1="852.00" y1="120" x2="852.00" y2="690" stroke="#ededed"/>
+<text x="852.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">10</text>
+<line x1="914.00" y1="120" x2="914.00" y2="690" stroke="#ededed"/>
+<text x="914.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">20</text>
+<line x1="976.00" y1="120" x2="976.00" y2="690" stroke="#ededed"/>
+<text x="976.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">30</text>
+<line x1="1038.00" y1="120" x2="1038.00" y2="690" stroke="#ededed"/>
+<text x="1038.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">40</text>
+<line x1="1100.00" y1="120" x2="1100.00" y2="690" stroke="#ededed"/>
+<text x="1100.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">50</text>
+<line x1="1162.00" y1="120" x2="1162.00" y2="690" stroke="#ededed"/>
+<text x="1162.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">60</text>
+<line x1="1224.00" y1="120" x2="1224.00" y2="690" stroke="#ededed"/>
+<text x="1224.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">70</text>
+<line x1="1286.00" y1="120" x2="1286.00" y2="690" stroke="#ededed"/>
+<text x="1286.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">80</text>
+<line x1="1348.00" y1="120" x2="1348.00" y2="690" stroke="#ededed"/>
+<text x="1348.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">90</text>
+<line x1="1410.00" y1="120" x2="1410.00" y2="690" stroke="#ededed"/>
+<text x="1410.0" y="714" font-family="sans-serif" text-anchor="middle" font-size="11">100</text>
+<line x1="790.0" y1="690.00" x2="1410.0" y2="690.00" stroke="#ededed"/>
+<text x="780.0" y="694.0" font-family="sans-serif" text-anchor="end" font-size="11">0</text>
+<line x1="790.0" y1="618.75" x2="1410.0" y2="618.75" stroke="#ededed"/>
+<text x="780.0" y="622.75" font-family="sans-serif" text-anchor="end" font-size="11">10</text>
+<line x1="790.0" y1="547.50" x2="1410.0" y2="547.50" stroke="#ededed"/>
+<text x="780.0" y="551.5" font-family="sans-serif" text-anchor="end" font-size="11">20</text>
+<line x1="790.0" y1="476.25" x2="1410.0" y2="476.25" stroke="#ededed"/>
+<text x="780.0" y="480.25" font-family="sans-serif" text-anchor="end" font-size="11">30</text>
+<line x1="790.0" y1="405.00" x2="1410.0" y2="405.00" stroke="#ededed"/>
+<text x="780.0" y="409.0" font-family="sans-serif" text-anchor="end" font-size="11">40</text>
+<line x1="790.0" y1="333.75" x2="1410.0" y2="333.75" stroke="#ededed"/>
+<text x="780.0" y="337.75" font-family="sans-serif" text-anchor="end" font-size="11">50</text>
+<line x1="790.0" y1="262.50" x2="1410.0" y2="262.50" stroke="#ededed"/>
+<text x="780.0" y="266.5" font-family="sans-serif" text-anchor="end" font-size="11">60</text>
+<line x1="790.0" y1="191.25" x2="1410.0" y2="191.25" stroke="#ededed"/>
+<text x="780.0" y="195.25" font-family="sans-serif" text-anchor="end" font-size="11">70</text>
+<line x1="790.0" y1="120.00" x2="1410.0" y2="120.00" stroke="#ededed"/>
+<text x="780.0" y="124.0" font-family="sans-serif" text-anchor="end" font-size="11">80</text>
+<rect x="790.0" y="120" width="620.0" height="570" fill="none" stroke="#222"/>
+<text x="1100.0" y="102" font-family="sans-serif" text-anchor="middle" font-size="18" font-weight="bold">E=2</text>
+<text x="750.0" y="759" font-family="sans-serif" text-anchor="middle" font-size="18">log₂(1 / Pr[pre-batch stash &gt; R])</text>
+<text x="25" y="405.0" font-family="sans-serif" text-anchor="middle" font-size="18" transform="rotate(-90 25 405.0)">Pre-batch stash threshold R (blocks)</text>
+<rect x="207.80" y="120" width="502.20" height="570" fill="#777" opacity="0.035"/>
+<line x1="207.80" y1="120" x2="207.80" y2="690" stroke="#555" stroke-width="1.2" stroke-dasharray="3 5"/>
+<line x1="685.20" y1="120" x2="685.20" y2="690" stroke="#222" stroke-width="1.2" stroke-dasharray="4 5"/>
+<text x="681.1999999999999" y="138" font-family="sans-serif" text-anchor="end" font-size="11">96</text>
+<polyline fill="none" stroke="#0072b2" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="94.52,690.00 114.96,682.88 135.77,675.75 146.91,668.62 157.07,661.50 166.69,654.38 176.32,647.25 186.43,640.12 196.92,633.00 203.99,625.88"/>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.65" stroke-dasharray="3 4" points="203.99,625.88 211.15,618.75 224.40,611.62"/>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.88" stroke-dasharray="10 7" points="152.00,665.06 685.20,263.21"/>
+<circle cx="685.20" cy="263.21" r="4" fill="#0072b2"/>
+<polyline fill="none" stroke="#009e73" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="94.52,690.00 114.97,682.88 135.82,675.75 146.79,668.62 156.65,661.50 165.74,654.38 174.21,647.25 182.21,640.12 189.52,633.00 196.59,625.88 204.46,618.75"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.65" stroke-dasharray="3 4" points="204.46,618.75 210.37,611.62 214.88,604.50 216.95,597.38 222.06,590.25 238.80,583.12"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.88" stroke-dasharray="10 7" points="152.00,664.86 685.20,196.16"/>
+<circle cx="685.20" cy="196.16" r="4" fill="#009e73"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="94.52,690.00 114.89,682.88 135.52,675.75 146.49,668.62 156.20,661.50 165.14,654.38 173.70,647.25 181.78,640.12 190.89,633.00 201.32,625.88"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.65" stroke-dasharray="3 4" points="201.32,625.88 213.46,618.75 235.17,611.62"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.88" stroke-dasharray="10 7" points="152.00,664.58 685.20,246.15"/>
+<circle cx="685.20" cy="246.15" r="4" fill="#e69f00"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="94.52,690.00 114.96,682.88 135.88,675.75 147.15,668.62 157.63,661.50 167.67,654.38 177.69,647.25 186.24,640.12 193.57,633.00 198.96,625.88 204.46,618.75"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.65" stroke-dasharray="3 4" points="204.46,618.75 218.66,611.62"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.88" stroke-dasharray="10 7" points="152.00,665.33 685.20,191.89"/>
+<circle cx="685.20" cy="191.89" r="4" fill="#d55e00"/>
+<rect x="907.80" y="120" width="502.20" height="570" fill="#777" opacity="0.035"/>
+<line x1="907.80" y1="120" x2="907.80" y2="690" stroke="#555" stroke-width="1.2" stroke-dasharray="3 5"/>
+<line x1="1385.20" y1="120" x2="1385.20" y2="690" stroke="#222" stroke-width="1.2" stroke-dasharray="4 5"/>
+<text x="1381.1999999999998" y="138" font-family="sans-serif" text-anchor="end" font-size="11">96</text>
+<polyline fill="none" stroke="#0072b2" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="796.14,690.00 849.57,682.88 868.64,675.75 884.22,668.62 897.83,661.50"/>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.65" stroke-dasharray="3 4" points="897.83,661.50 909.83,654.38 922.06,647.25 945.00,640.12"/>
+<polyline fill="none" stroke="#0072b2" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.88" stroke-dasharray="10 7" points="852.00,681.97 1385.20,443.85"/>
+<circle cx="1385.20" cy="443.85" r="4" fill="#0072b2"/>
+<polyline fill="none" stroke="#009e73" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="796.14,690.00 849.40,682.88 868.61,675.75 885.23,668.62 902.18,661.50"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.65" stroke-dasharray="3 4" points="902.18,661.50 922.06,654.38"/>
+<polyline fill="none" stroke="#009e73" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.88" stroke-dasharray="10 7" points="852.00,681.91 1385.20,465.02"/>
+<circle cx="1385.20" cy="465.02" r="4" fill="#009e73"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="796.14,690.00 849.55,682.88 868.60,675.75 886.54,668.62 902.25,661.50"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.65" stroke-dasharray="3 4" points="902.25,661.50 918.66,654.38"/>
+<polyline fill="none" stroke="#e69f00" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.88" stroke-dasharray="10 7" points="852.00,681.96 1385.20,464.89"/>
+<circle cx="1385.20" cy="464.89" r="4" fill="#e69f00"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="1.0" points="796.14,690.00 849.48,682.88 868.98,675.75 886.09,668.62 903.29,661.50"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.65" stroke-dasharray="3 4" points="903.29,661.50 918.20,654.38 935.17,647.25"/>
+<polyline fill="none" stroke="#d55e00" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.88" stroke-dasharray="10 7" points="852.00,681.96 1385.20,469.29"/>
+<circle cx="1385.20" cy="469.29" r="4" fill="#d55e00"/>
+<line x1="535.0" y1="724" x2="569.0" y2="724" stroke="#0072b2" stroke-width="3"/>
+<text x="577.0" y="729" font-family="sans-serif" font-size="13">ρ=60%</text>
+<line x1="680.0" y1="724" x2="714.0" y2="724" stroke="#009e73" stroke-width="3"/>
+<text x="722.0" y="729" font-family="sans-serif" font-size="13">ρ=70%</text>
+<line x1="825.0" y1="724" x2="859.0" y2="724" stroke="#e69f00" stroke-width="3"/>
+<text x="867.0" y="729" font-family="sans-serif" font-size="13">ρ=80%</text>
+<line x1="970.0" y1="724" x2="1004.0" y2="724" stroke="#d55e00" stroke-width="3"/>
+<text x="1012.0" y="729" font-family="sans-serif" font-size="13">ρ=90%</text>
+</svg>
