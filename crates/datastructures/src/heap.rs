@@ -6,7 +6,7 @@ use rostl_oram::{
   heap_tree::HeapTree,
   prelude::{PositionType, K},
 };
-use rostl_primitives::traits::{Cmov, _Cmovbase};
+use rostl_primitives::traits::{_Cmovbase, Cmov};
 use rostl_primitives::{cmov_body, cxchg_body, impl_cmov_for_generic_pod};
 
 #[derive(Clone, Copy, Debug, Zeroable)]

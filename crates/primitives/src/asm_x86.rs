@@ -5,7 +5,7 @@
 use core::arch::x86_64::*;
 use std::arch::asm;
 
-use crate::traits::{Cmov, _Cmovbase};
+use crate::traits::{_Cmovbase, Cmov};
 
 // CMOV -------------------------
 //

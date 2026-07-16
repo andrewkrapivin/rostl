@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use rostl_primitives::{
   cmov_body, cxchg_body, impl_cmov_for_generic_pod,
   ooption::OOption,
-  traits::{Cmov, _Cmovbase},
+  traits::{_Cmovbase, Cmov},
 };
 use rostl_sort::{
   bitonic::{bitonic_payload_sort, bitonic_sort},
